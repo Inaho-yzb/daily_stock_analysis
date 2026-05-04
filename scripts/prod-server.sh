@@ -59,12 +59,25 @@ pid_alive() {
   kill -0 "$pid" 2>/dev/null
 }
 
+install_deps() {
+  log "安装 Python 依赖..."
+  cd "$ROOT_DIR"
+  uv sync 2>/dev/null || uv pip install -r requirements.txt
+  log "Python 依赖就绪"
+}
+
 start_server() {
   if pid_alive "$PID_FILE"; then
     log "服务已在运行 (PID $(cat "$PID_FILE"))"
     return 0
   fi
   check_port "$PORT_PRODUCTION" "后端"
+
+  # 检查 Python 依赖，缺失则自动安装
+  cd "$ROOT_DIR"
+  if ! uv run python -c "import uvicorn" 2>/dev/null; then
+    install_deps
+  fi
 
   # 检查静态文件，缺失则自动构建
   if ! check_frontend; then
