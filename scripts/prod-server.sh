@@ -62,7 +62,12 @@ pid_alive() {
 install_deps() {
   log "安装 Python 依赖..."
   cd "$ROOT_DIR"
-  uv sync 2>/dev/null || uv pip install -r requirements.txt
+  uv sync || true
+  uv pip install -r requirements.txt
+  if ! uv run python -c "import uvicorn" 2>/dev/null; then
+    err "依赖安装失败（uvicorn 仍不可用），请手动执行: cd $ROOT_DIR && uv pip install -r requirements.txt"
+    return 1
+  fi
   log "Python 依赖就绪"
 }
 
@@ -76,7 +81,7 @@ start_server() {
   # 检查 Python 依赖，缺失则自动安装
   cd "$ROOT_DIR"
   if ! uv run python -c "import uvicorn" 2>/dev/null; then
-    install_deps
+    install_deps || return 1
   fi
 
   # 检查静态文件，缺失则自动构建
