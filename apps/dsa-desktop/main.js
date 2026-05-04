@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, ipcMain, shell, nativeTheme } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
@@ -15,7 +15,7 @@ let desktopUpdateState = null;
 let lastNotifiedUpdateVersion = '';
 
 function resolveWindowBackgroundColor() {
-  return nativeTheme.shouldUseDarkColors ? '#08080c' : '#f4f7fb';
+  return '#f4f7fb';
 }
 
 const isWindows = process.platform === 'win32';
@@ -876,17 +876,6 @@ async function createWindow() {
   const loadingPageStartedAt = Date.now();
   await mainWindow.loadFile(loadingPath);
   logStartup(`Loading page rendered in ${Date.now() - loadingPageStartedAt}ms`);
-
-  const applyThemeBackground = () => {
-    if (!mainWindow || mainWindow.isDestroyed()) {
-      return;
-    }
-    mainWindow.setBackgroundColor(resolveWindowBackgroundColor());
-  };
-  nativeTheme.on('updated', applyThemeBackground);
-  mainWindow.once('closed', () => {
-    nativeTheme.removeListener('updated', applyThemeBackground);
-  });
 
   const webViewStartedAt = Date.now();
   mainWindow.webContents.on('did-start-loading', () => {

@@ -9,7 +9,7 @@ FRONTEND_PID_FILE="/tmp/dsa-frontend.pid"
 BACKEND_LOG="/tmp/dsa-backend.log"
 FRONTEND_LOG="/tmp/dsa-frontend.log"
 
-PORT_BACKEND=8000
+PORT_BACKEND=12222
 PORT_FRONTEND=5173
 
 log()  { echo -e "\033[1;32m[dev]\033[0m $1"; }
@@ -39,7 +39,7 @@ start_backend() {
   check_port "$PORT_BACKEND" "后端"
   log "启动后端 (port $PORT_BACKEND)..."
   cd "$ROOT_DIR"
-  nohup uv run python main.py --serve-only > "$BACKEND_LOG" 2>&1 &
+  nohup uv run python main.py --serve-only --port "$PORT_BACKEND" > "$BACKEND_LOG" 2>&1 &
   echo $! > "$BACKEND_PID_FILE"
   sleep 3
   if pid_alive "$BACKEND_PID_FILE"; then

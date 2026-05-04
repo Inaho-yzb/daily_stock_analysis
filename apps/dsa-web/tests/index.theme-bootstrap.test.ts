@@ -9,7 +9,7 @@ describe('index.html theme bootstrap', () => {
     const indexHtml = readFileSync(resolve(__dirname, '..', 'index.html'), 'utf8');
 
     expect(indexHtml).toContain("const storageKey = 'theme'");
-    expect(indexHtml).toContain("const theme = storedTheme === 'light' || storedTheme === 'dark' ? storedTheme : 'dark';");
+    expect(indexHtml).toContain("const theme = storedTheme === 'light' || storedTheme === 'dark' ? storedTheme : 'light';");
     expect(indexHtml).toContain("root.classList.remove('light', 'dark');");
     expect(indexHtml).toContain('root.classList.add(theme);');
     expect(indexHtml).toContain('root.style.colorScheme = theme;');

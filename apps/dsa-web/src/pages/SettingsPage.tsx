@@ -560,7 +560,7 @@ const SettingsPage: React.FC = () => {
                   </div>
                 ) : null}
                 {WEB_BUILD_INFO.isFallbackVersion ? (
-                  <p className="text-xs leading-6 text-amber-700 dark:text-amber-300">
+                  <p className="text-xs leading-6 text-amber-700">
                     当前 package.json 仍为占位版本 0.0.0，页面已自动回退展示构建标识，避免误判旧资源仍在生效。
                   </p>
                 ) : null}

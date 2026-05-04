@@ -27,7 +27,7 @@ beforeAll(() => {
   Object.defineProperty(window, 'matchMedia', {
     writable: true,
     value: vi.fn().mockImplementation((query: string) => ({
-      matches: query === '(prefers-color-scheme: dark)',
+      matches: query === '(prefers-color-scheme: light)',
       media: query,
       onchange: null,
       addListener: vi.fn(),

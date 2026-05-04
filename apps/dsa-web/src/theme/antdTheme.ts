@@ -60,22 +60,3 @@ export const lightTheme: ThemeConfig = {
   },
   components: commonComponents,
 };
-
-export const darkTheme: ThemeConfig = {
-  algorithm: theme.darkAlgorithm,
-  token: {
-    ...commonToken,
-    colorPrimary: '#00d4ff',
-    colorBgBase: '#0a0e1a',
-    colorTextBase: '#eef0f5',
-    colorBgContainer: '#121828',
-    colorBgElevated: '#1a2030',
-    colorBorder: '#222838',
-    colorBorderSecondary: '#2a3040',
-    colorError: '#ff5478',
-    colorSuccess: '#1f9c55',
-    colorWarning: '#f59b0a',
-    colorInfo: '#00d4ff',
-  },
-  components: commonComponents,
-};

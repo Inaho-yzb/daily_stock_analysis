@@ -34,15 +34,4 @@ describe('login theme tokens', () => {
     }
   });
 
-  it('defines all login-specific tokens in the dark theme block', () => {
-    const css = readFileSync(resolve(__dirname, '..', 'src', 'index.css'), 'utf8');
-    const darkMatch = css.match(/\.dark\s*\{([\s\S]*?)\n\}/);
-
-    expect(darkMatch).not.toBeNull();
-    const darkBlock = darkMatch?.[1] ?? '';
-
-    for (const token of REQUIRED_LOGIN_TOKENS) {
-      expect(darkBlock).toContain(token);
-    }
-  });
 });
