@@ -33,9 +33,8 @@ build_frontend() {
 }
 
 check_frontend() {
-  local index="$ROOT_DIR/static/index.html"
-  if [[ ! -f "$index" ]]; then
-    warn "静态文件未构建（未找到 $index）"
+  if [[ ! -f "${ROOT_DIR:-}/static/index.html" ]]; then
+    warn "静态文件未构建（未找到 ${ROOT_DIR:-}/static/index.html）"
     return 1
   fi
   return 0
