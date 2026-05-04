@@ -431,6 +431,25 @@ class PortfolioRepository:
         session.flush()
         return True
 
+    def delete_trades_by_symbol_in_session(
+        self, *, session: Any, account_id: int, symbol: str
+    ) -> int:
+        """Delete all trades for a given account+symbol in a write session."""
+        result = session.execute(
+            delete(PortfolioTrade).where(
+                PortfolioTrade.account_id == account_id,
+                PortfolioTrade.symbol == symbol,
+            )
+        )
+        if result.rowcount:
+            self._invalidate_account_cache_in_session(
+                session=session,
+                account_id=account_id,
+                from_date=date(2020, 1, 1),
+            )
+        session.flush()
+        return result.rowcount
+
     def delete_cash_ledger_in_session(self, *, session: Any, entry_id: int) -> bool:
         row = session.execute(
             select(PortfolioCashLedger).where(PortfolioCashLedger.id == entry_id).limit(1)

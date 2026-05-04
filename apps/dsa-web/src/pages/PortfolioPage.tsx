@@ -14,9 +14,6 @@ import type {
   PortfolioCorporateActionType,
   PortfolioCostMethod,
   PortfolioFxRefreshResponse,
-  PortfolioImportBrokerItem,
-  PortfolioImportCommitResponse,
-  PortfolioImportParseResponse,
   PortfolioPositionItem,
   PortfolioRiskResponse,
   PortfolioSide,
@@ -26,12 +23,6 @@ import type {
 
 const PIE_COLORS = ['#00d4ff', '#00ff88', '#ffaa00', '#ff7a45', '#7f8cff', '#ff4466'];
 const DEFAULT_PAGE_SIZE = 20;
-const FALLBACK_BROKERS: PortfolioImportBrokerItem[] = [
-  { broker: 'huatai', aliases: [], displayName: '华泰' },
-  { broker: 'citic', aliases: ['zhongxin'], displayName: '中信' },
-  { broker: 'cmb', aliases: ['cmbchina', 'zhaoshang'], displayName: '招商' },
-];
-
 type AccountOption = 'all' | number;
 type EventType = 'trade' | 'cash' | 'corporate';
 
@@ -60,9 +51,6 @@ type PortfolioAlertVariant = 'info' | 'success' | 'warning' | 'danger';
 const PORTFOLIO_INPUT_CLASS =
   'input-surface input-focus-glow h-11 w-full rounded-xl border bg-transparent px-4 text-sm transition-all focus:outline-none disabled:cursor-not-allowed disabled:opacity-60';
 const PORTFOLIO_SELECT_CLASS = `${PORTFOLIO_INPUT_CLASS} appearance-none pr-10`;
-const PORTFOLIO_FILE_PICKER_CLASS =
-  'input-surface input-focus-glow flex h-11 w-full cursor-pointer items-center justify-center rounded-xl border bg-transparent px-4 text-sm transition-all focus:outline-none disabled:cursor-not-allowed disabled:opacity-60';
-
 function getTodayIso(): string {
   return toDateInputValue(new Date());
 }
@@ -123,14 +111,6 @@ function formatCorporateActionLabel(value: PortfolioCorporateActionType): string
   return value === 'cash_dividend' ? '现金分红' : '拆并股调整';
 }
 
-function formatBrokerLabel(value: string, displayName?: string): string {
-  if (displayName && displayName.trim()) return `${value}（${displayName.trim()}）`;
-  if (value === 'huatai') return 'huatai（华泰）';
-  if (value === 'citic') return 'citic（中信）';
-  if (value === 'cmb') return 'cmb（招商）';
-  return value;
-}
-
 function buildFxRefreshFeedback(data: PortfolioFxRefreshResponse): FxRefreshFeedback {
   if (data.refreshEnabled === false) {
     return {
@@ -173,15 +153,6 @@ function getFxRefreshFeedbackVariant(tone: FxRefreshFeedback['tone']): Portfolio
   return 'info';
 }
 
-function getCsvParseVariant(result: PortfolioImportParseResponse): PortfolioAlertVariant {
-  return result.errorCount > 0 || result.skippedCount > 0 ? 'warning' : 'info';
-}
-
-function getCsvCommitVariant(result: PortfolioImportCommitResponse, isDryRun: boolean): PortfolioAlertVariant {
-  if (isDryRun) return 'info';
-  return result.failedCount > 0 || result.duplicateCount > 0 ? 'warning' : 'success';
-}
-
 const PortfolioPage: React.FC = () => {
   // Set page title
   useEffect(() => {
@@ -209,16 +180,6 @@ const PortfolioPage: React.FC = () => {
   const [error, setError] = useState<ParsedApiError | null>(null);
   const [riskWarning, setRiskWarning] = useState<string | null>(null);
   const [writeWarning, setWriteWarning] = useState<string | null>(null);
-
-  const [brokers, setBrokers] = useState<PortfolioImportBrokerItem[]>([]);
-  const [selectedBroker, setSelectedBroker] = useState('huatai');
-  const [csvFile, setCsvFile] = useState<File | null>(null);
-  const [csvDryRun, setCsvDryRun] = useState(true);
-  const [csvParsing, setCsvParsing] = useState(false);
-  const [csvCommitting, setCsvCommitting] = useState(false);
-  const [csvParseResult, setCsvParseResult] = useState<PortfolioImportParseResponse | null>(null);
-  const [csvCommitResult, setCsvCommitResult] = useState<PortfolioImportCommitResponse | null>(null);
-  const [brokerLoadWarning, setBrokerLoadWarning] = useState<string | null>(null);
 
   const [eventType, setEventType] = useState<EventType>('trade');
   const [eventDateFrom, setEventDateFrom] = useState('');
@@ -262,6 +223,14 @@ const PortfolioPage: React.FC = () => {
     splitRatio: '',
     note: '',
   });
+  const [positionSetForm, setPositionSetForm] = useState({
+    symbol: '',
+    market: '' as '' | 'cn' | 'hk' | 'us',
+    currency: '',
+    quantity: '',
+    avgCost: '',
+    note: '',
+  });
 
   const queryAccountId = selectedAccount === 'all' ? undefined : selectedAccount;
   const refreshViewKey = `${selectedAccount === 'all' ? 'all' : `account:${selectedAccount}`}:cost:${costMethod}`;
@@ -299,32 +268,6 @@ const PortfolioPage: React.FC = () => {
       setError(getParsedApiError(err));
     }
   }, []);
-
-  const loadBrokers = useCallback(async () => {
-    try {
-      const response = await portfolioApi.listImportBrokers();
-      const brokerItems = response.brokers || [];
-      if (brokerItems.length === 0) {
-        setBrokers(FALLBACK_BROKERS);
-        setBrokerLoadWarning('券商列表接口返回为空，已回退为内置券商列表（华泰/中信/招商）。');
-        if (!FALLBACK_BROKERS.some((item) => item.broker === selectedBroker)) {
-          setSelectedBroker(FALLBACK_BROKERS[0].broker);
-        }
-        return;
-      }
-      setBrokers(brokerItems);
-      setBrokerLoadWarning(null);
-      if (!brokerItems.some((item) => item.broker === selectedBroker)) {
-        setSelectedBroker(brokerItems[0].broker);
-      }
-    } catch {
-      setBrokers(FALLBACK_BROKERS);
-      setBrokerLoadWarning('券商列表接口不可用，已回退为内置券商列表（华泰/中信/招商）。');
-      if (!FALLBACK_BROKERS.some((item) => item.broker === selectedBroker)) {
-        setSelectedBroker(FALLBACK_BROKERS[0].broker);
-      }
-    }
-  }, [selectedBroker]);
 
   const loadSnapshotAndRisk = useCallback(async () => {
     setIsLoading(true);
@@ -422,8 +365,7 @@ const PortfolioPage: React.FC = () => {
 
   useEffect(() => {
     void loadAccounts();
-    void loadBrokers();
-  }, [loadAccounts, loadBrokers]);
+  }, [loadAccounts]);
 
   useEffect(() => {
     void loadSnapshotAndRisk();
@@ -522,6 +464,30 @@ const PortfolioPage: React.FC = () => {
     }
   };
 
+  const handlePositionSetSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!writableAccountId) {
+      setWriteWarning('请先在右上角选择具体账户，再进行录入或导入提交。');
+      return;
+    }
+    try {
+      setWriteWarning(null);
+      await portfolioApi.setPosition({
+        accountId: writableAccountId,
+        symbol: positionSetForm.symbol,
+        market: positionSetForm.market || undefined,
+        currency: positionSetForm.currency || undefined,
+        quantity: Number(positionSetForm.quantity),
+        avgCost: Number(positionSetForm.avgCost),
+        note: positionSetForm.note || undefined,
+      });
+      await refreshPortfolioData();
+      setPositionSetForm((prev) => ({ ...prev, symbol: '', note: '' }));
+    } catch (err) {
+      setError(getParsedApiError(err));
+    }
+  };
+
   const handleCashSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!writableAccountId) {
@@ -566,41 +532,6 @@ const PortfolioPage: React.FC = () => {
       setCorpForm((prev) => ({ ...prev, symbol: '', note: '' }));
     } catch (err) {
       setError(getParsedApiError(err));
-    }
-  };
-
-  const handleParseCsv = async () => {
-    if (!csvFile) return;
-    try {
-      setCsvParsing(true);
-      const parsed = await portfolioApi.parseCsvImport(selectedBroker, csvFile);
-      setCsvParseResult(parsed);
-      setCsvCommitResult(null);
-    } catch (err) {
-      setError(getParsedApiError(err));
-    } finally {
-      setCsvParsing(false);
-    }
-  };
-
-  const handleCommitCsv = async () => {
-    if (!csvFile) return;
-    if (!writableAccountId) {
-      setWriteWarning('请先在右上角选择具体账户，再进行录入或导入提交。');
-      return;
-    }
-    try {
-      setWriteWarning(null);
-      setCsvCommitting(true);
-      const committed = await portfolioApi.commitCsvImport(writableAccountId, selectedBroker, csvFile, csvDryRun);
-      setCsvCommitResult(committed);
-      if (!csvDryRun) {
-        await refreshPortfolioData();
-      }
-    } catch (err) {
-      setError(getParsedApiError(err));
-    } finally {
-      setCsvCommitting(false);
     }
   };
 
@@ -682,7 +613,7 @@ const PortfolioPage: React.FC = () => {
   };
 
   const handleRefresh = async () => {
-    await Promise.all([loadAccounts(), loadSnapshotAndRisk(), loadEvents(), loadBrokers()]);
+    await Promise.all([loadAccounts(), loadSnapshotAndRisk(), loadEvents()]);
   };
 
   const reloadSnapshotAndRiskForScope = useCallback(async (
@@ -789,7 +720,7 @@ const PortfolioPage: React.FC = () => {
         <div className="space-y-2">
           <h1 className="text-xl md:text-2xl font-semibold text-foreground">持仓管理</h1>
           <p className="text-xs md:text-sm text-secondary">
-            组合快照、手工录入、CSV 导入与风险分析（支持全组合 / 单账户切换）
+            组合快照、手工录入与风险分析（支持全组合 / 单账户切换）
           </p>
         </div>
         {hasAccounts ? (
@@ -848,7 +779,7 @@ const PortfolioPage: React.FC = () => {
           <InlineAlert
             variant="warning"
             className="inline-block rounded-lg px-3 py-2 text-xs shadow-none"
-            message="还没有可用账户，请先创建账户后再录入交易或导入 CSV。"
+            message="还没有可用账户，请先创建账户后再录入交易。"
           />
         )}
       </section>
@@ -986,7 +917,7 @@ const PortfolioPage: React.FC = () => {
           {positionRows.length === 0 ? (
             <EmptyState
               title="当前无持仓数据"
-              description="录入交易或导入 CSV 后，这里会展示按账户汇总的持仓明细。"
+              description="录入交易后，这里会展示按账户汇总的持仓明细。"
               className="border-none bg-transparent px-4 py-8 shadow-none"
             />
           ) : (
@@ -1083,7 +1014,7 @@ const PortfolioPage: React.FC = () => {
         <InlineAlert
           variant="warning"
           className="rounded-lg px-3 py-2 text-xs shadow-none"
-          message="当前处于“全部账户”视图。为避免误写，请先选择一个具体账户后再进行手工录入或 CSV 提交。"
+          message={'当前处于“全部账户”视图。为避免误写，请先选择一个具体账户后再进行手工录入。'}
         />
       ) : null}
 
@@ -1111,6 +1042,40 @@ const PortfolioPage: React.FC = () => {
             <div>计价币种: {snapshot?.currency || 'CNY'}</div>
             <div>成本法: {(snapshot?.costMethod || costMethod).toUpperCase()}</div>
           </div>
+        </Card>
+      </section>
+
+      <section className="grid grid-cols-1 gap-3 mb-3">
+        <Card padding="md">
+          <h3 className="text-sm font-semibold text-foreground mb-3">直接设置仓位</h3>
+          <p className="text-xs text-secondary mb-3">
+            覆盖该代码已有交易记录，以当前数量与成本价生成单笔合成买入。成本价支持负数。
+          </p>
+          <form className="space-y-2" onSubmit={handlePositionSetSubmit}>
+            <input className={PORTFOLIO_INPUT_CLASS} placeholder="股票代码（例如 600519）"
+              value={positionSetForm.symbol}
+              onChange={(e) => setPositionSetForm((prev) => ({ ...prev, symbol: e.target.value }))} required />
+            <div className="grid grid-cols-2 gap-2">
+              <select className={PORTFOLIO_SELECT_CLASS} value={positionSetForm.market}
+                onChange={(e) => setPositionSetForm((prev) => ({ ...prev, market: e.target.value as '' | 'cn' | 'hk' | 'us' }))}>
+                <option value="">市场（选填）</option>
+                <option value="cn">A股</option>
+                <option value="hk">港股</option>
+                <option value="us">美股</option>
+              </select>
+              <input className={PORTFOLIO_INPUT_CLASS} placeholder="币种（选填，如 HKD）" value={positionSetForm.currency}
+                onChange={(e) => setPositionSetForm((prev) => ({ ...prev, currency: e.target.value }))} />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <input className={PORTFOLIO_INPUT_CLASS} type="number" min="0.0001" step="0.0001" placeholder="持仓数量（必填）" value={positionSetForm.quantity}
+                onChange={(e) => setPositionSetForm((prev) => ({ ...prev, quantity: e.target.value }))} required />
+              <input className={PORTFOLIO_INPUT_CLASS} type="number" step="0.0001" placeholder="成本价（支持负数）" value={positionSetForm.avgCost}
+                onChange={(e) => setPositionSetForm((prev) => ({ ...prev, avgCost: e.target.value }))} required />
+            </div>
+            <input className={PORTFOLIO_INPUT_CLASS} placeholder="备注（可选）" value={positionSetForm.note}
+              onChange={(e) => setPositionSetForm((prev) => ({ ...prev, note: e.target.value }))} />
+            <button type="submit" className="btn-primary w-full" disabled={!writableAccountId}>设置仓位</button>
+          </form>
         </Card>
       </section>
 
@@ -1194,63 +1159,7 @@ const PortfolioPage: React.FC = () => {
         </Card>
       </section>
 
-      <section className="grid grid-cols-1 xl:grid-cols-2 gap-3">
-        <Card padding="md">
-          <h3 className="text-sm font-semibold text-foreground mb-3">券商 CSV 导入</h3>
-          <div className="space-y-2">
-            {brokerLoadWarning ? (
-              <InlineAlert
-                variant="warning"
-                className="rounded-lg px-2 py-1 text-xs shadow-none"
-                message={brokerLoadWarning}
-              />
-            ) : null}
-            <div className="grid grid-cols-2 gap-2">
-              <select className={PORTFOLIO_SELECT_CLASS} value={selectedBroker} onChange={(e) => setSelectedBroker(e.target.value)}>
-                {brokers.length > 0 ? (
-                  brokers.map((item) => <option key={item.broker} value={item.broker}>{formatBrokerLabel(item.broker, item.displayName)}</option>)
-                ) : (
-                  <option value="huatai">huatai（华泰）</option>
-                )}
-              </select>
-              <label className={PORTFOLIO_FILE_PICKER_CLASS}>
-                选择 CSV
-                <input type="file" accept=".csv" className="hidden"
-                  onChange={(e) => setCsvFile(e.target.files && e.target.files[0] ? e.target.files[0] : null)} />
-              </label>
-            </div>
-            <div className="flex items-center gap-2 text-xs text-secondary">
-              <input id="csv-dry-run" type="checkbox" checked={csvDryRun} onChange={(e) => setCsvDryRun(e.target.checked)} />
-              <label htmlFor="csv-dry-run">仅预演（不写入）</label>
-            </div>
-            <div className="flex gap-2">
-              <button type="button" className="btn-secondary flex-1" disabled={!csvFile || csvParsing} onClick={() => void handleParseCsv()}>
-                {csvParsing ? '解析中...' : '解析文件'}
-              </button>
-              <button type="button" className="btn-secondary flex-1"
-                disabled={!csvFile || !writableAccountId || csvCommitting} onClick={() => void handleCommitCsv()}>
-                {csvCommitting ? '提交中...' : '提交导入'}
-              </button>
-            </div>
-            {csvParseResult ? (
-              <InlineAlert
-                variant={getCsvParseVariant(csvParseResult)}
-                title="CSV 解析结果"
-                message={`有效 ${csvParseResult.recordCount} 条，跳过 ${csvParseResult.skippedCount} 条，错误 ${csvParseResult.errorCount} 条。`}
-                className="rounded-lg px-3 py-2 text-xs shadow-none"
-              />
-            ) : null}
-            {csvCommitResult ? (
-              <InlineAlert
-                variant={getCsvCommitVariant(csvCommitResult, csvDryRun)}
-                title={csvDryRun ? 'CSV 预演结果' : 'CSV 提交结果'}
-                message={`${csvDryRun ? '预演检查' : '实际写入'}：写入 ${csvCommitResult.insertedCount} 条，重复 ${csvCommitResult.duplicateCount} 条，失败 ${csvCommitResult.failedCount} 条。`}
-                className="rounded-lg px-3 py-2 text-xs shadow-none"
-              />
-            ) : null}
-          </div>
-        </Card>
-
+      <section className="grid grid-cols-1 gap-3">
         <Card padding="md">
           <h3 className="text-sm font-semibold text-foreground mb-3">事件记录</h3>
           <div className="space-y-2">

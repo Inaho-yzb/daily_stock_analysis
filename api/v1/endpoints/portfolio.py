@@ -7,7 +7,7 @@ import logging
 from datetime import date
 from typing import Optional
 
-from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, HTTPException, Query
 
 from api.v1.schemas.common import ErrorResponse
 from api.v1.schemas.portfolio import (
@@ -22,16 +22,12 @@ from api.v1.schemas.portfolio import (
     PortfolioDeleteResponse,
     PortfolioEventCreatedResponse,
     PortfolioFxRefreshResponse,
-    PortfolioImportBrokerListResponse,
-    PortfolioImportCommitResponse,
-    PortfolioImportParseResponse,
-    PortfolioImportTradeItem,
+    PortfolioPositionSetRequest,
     PortfolioRiskResponse,
     PortfolioSnapshotResponse,
     PortfolioTradeListResponse,
     PortfolioTradeCreateRequest,
 )
-from src.services.portfolio_import_service import PortfolioImportService
 from src.services.portfolio_risk_service import PortfolioRiskService
 from src.services.portfolio_service import (
     PortfolioBusyError,
@@ -65,16 +61,6 @@ def _conflict_error(*, error: str, message: str) -> HTTPException:
         status_code=409,
         detail={"error": error, "message": message},
     )
-
-
-def _serialize_import_record(item: dict) -> PortfolioImportTradeItem:
-    payload = dict(item)
-    trade_date = payload.get("trade_date")
-    if isinstance(trade_date, date):
-        payload["trade_date"] = trade_date.isoformat()
-    else:
-        payload["trade_date"] = str(trade_date)
-    return PortfolioImportTradeItem(**payload)
 
 
 @router.post(
@@ -204,6 +190,38 @@ def create_trade(request: PortfolioTradeCreateRequest) -> PortfolioEventCreatedR
         raise _bad_request(exc)
     except Exception as exc:
         raise _internal_error("Create trade failed", exc)
+
+
+@router.post(
+    "/positions/set",
+    response_model=PortfolioEventCreatedResponse,
+    responses={400: {"model": ErrorResponse}, 409: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    summary="Set position directly (overwrites existing trades for symbol)",
+)
+def set_position(request: PortfolioPositionSetRequest) -> PortfolioEventCreatedResponse:
+    """直接设置仓位，覆盖该账户下同代码已有交易，以单笔合成买入替代。成本价支持负数。"""
+    service = PortfolioService()
+    try:
+        data = service.set_position(
+            account_id=request.account_id,
+            symbol=request.symbol,
+            quantity=request.quantity,
+            avg_cost=request.avg_cost,
+            market=request.market,
+            currency=request.currency,
+            note=request.note,
+        )
+        return PortfolioEventCreatedResponse(**data)
+    except PortfolioBusyError as exc:
+        raise _conflict_error(error="portfolio_busy", message=str(exc))
+    except PortfolioOversellError as exc:
+        raise _conflict_error(error="portfolio_oversell", message=str(exc))
+    except PortfolioConflictError as exc:
+        raise _conflict_error(error="conflict", message=str(exc))
+    except ValueError as exc:
+        raise _bad_request(exc)
+    except Exception as exc:
+        raise _internal_error("Set position failed", exc)
 
 
 @router.get(
@@ -453,77 +471,6 @@ def get_snapshot(
         raise _bad_request(exc)
     except Exception as exc:
         raise _internal_error("Get snapshot failed", exc)
-
-
-@router.post(
-    "/imports/csv/parse",
-    response_model=PortfolioImportParseResponse,
-    responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
-    summary="Parse broker CSV into normalized trade records",
-)
-def parse_csv_import(
-    broker: str = Form(..., description="Broker id: huatai/citic/cmb"),
-    file: UploadFile = File(...),
-) -> PortfolioImportParseResponse:
-    importer = PortfolioImportService()
-    try:
-        content = file.file.read()
-        parsed = importer.parse_trade_csv(broker=broker, content=content)
-        return PortfolioImportParseResponse(
-            broker=parsed["broker"],
-            record_count=parsed["record_count"],
-            skipped_count=parsed["skipped_count"],
-            error_count=parsed["error_count"],
-            records=[_serialize_import_record(item) for item in parsed.get("records", [])],
-            errors=list(parsed.get("errors", [])),
-        )
-    except ValueError as exc:
-        raise _bad_request(exc)
-    except Exception as exc:
-        raise _internal_error("Parse CSV import failed", exc)
-
-
-@router.get(
-    "/imports/csv/brokers",
-    response_model=PortfolioImportBrokerListResponse,
-    responses={500: {"model": ErrorResponse}},
-    summary="List supported broker CSV parsers",
-)
-def list_csv_brokers() -> PortfolioImportBrokerListResponse:
-    importer = PortfolioImportService()
-    try:
-        return PortfolioImportBrokerListResponse(brokers=importer.list_supported_brokers())
-    except Exception as exc:
-        raise _internal_error("List CSV brokers failed", exc)
-
-
-@router.post(
-    "/imports/csv/commit",
-    response_model=PortfolioImportCommitResponse,
-    responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
-    summary="Parse and commit broker CSV with dedup",
-)
-def commit_csv_import(
-    account_id: int = Form(...),
-    broker: str = Form(..., description="Broker id: huatai/citic/cmb"),
-    dry_run: bool = Form(False),
-    file: UploadFile = File(...),
-) -> PortfolioImportCommitResponse:
-    importer = PortfolioImportService()
-    try:
-        content = file.file.read()
-        parsed = importer.parse_trade_csv(broker=broker, content=content)
-        result = importer.commit_trade_records(
-            account_id=account_id,
-            broker=parsed["broker"],
-            records=list(parsed.get("records", [])),
-            dry_run=dry_run,
-        )
-        return PortfolioImportCommitResponse(**result)
-    except ValueError as exc:
-        raise _bad_request(exc)
-    except Exception as exc:
-        raise _internal_error("Commit CSV import failed", exc)
 
 
 @router.post(

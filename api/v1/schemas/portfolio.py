@@ -82,6 +82,17 @@ class PortfolioEventCreatedResponse(BaseModel):
     id: int
 
 
+class PortfolioPositionSetRequest(BaseModel):
+    """直接设置仓位（覆盖该账户下同代码已有交易，以单笔合成买入替代）。"""
+    account_id: int
+    symbol: str = Field(..., min_length=1, max_length=16)
+    market: Optional[Literal["cn", "hk", "us"]] = None
+    currency: Optional[str] = Field(None, min_length=3, max_length=8)
+    quantity: float = Field(..., gt=0)
+    avg_cost: float = Field(...)
+    note: Optional[str] = Field(None, max_length=255)
+
+
 class PortfolioDeleteResponse(BaseModel):
     deleted: int
 
@@ -202,48 +213,6 @@ class PortfolioSnapshotResponse(BaseModel):
     tax_total: float
     fx_stale: bool
     accounts: List[PortfolioAccountSnapshot] = Field(default_factory=list)
-
-
-class PortfolioImportTradeItem(BaseModel):
-    trade_date: str
-    symbol: str
-    side: Literal["buy", "sell"]
-    quantity: float
-    price: float
-    fee: float
-    tax: float
-    trade_uid: Optional[str] = None
-    dedup_hash: str
-    currency: Optional[str] = None
-
-
-class PortfolioImportParseResponse(BaseModel):
-    broker: str
-    record_count: int
-    skipped_count: int
-    error_count: int
-    records: List[PortfolioImportTradeItem] = Field(default_factory=list)
-    errors: List[str] = Field(default_factory=list)
-
-
-class PortfolioImportCommitResponse(BaseModel):
-    account_id: int
-    record_count: int
-    inserted_count: int
-    duplicate_count: int
-    failed_count: int
-    dry_run: bool
-    errors: List[str] = Field(default_factory=list)
-
-
-class PortfolioImportBrokerItem(BaseModel):
-    broker: str
-    aliases: List[str] = Field(default_factory=list)
-    display_name: Optional[str] = None
-
-
-class PortfolioImportBrokerListResponse(BaseModel):
-    brokers: List[PortfolioImportBrokerItem] = Field(default_factory=list)
 
 
 class PortfolioFxRefreshResponse(BaseModel):

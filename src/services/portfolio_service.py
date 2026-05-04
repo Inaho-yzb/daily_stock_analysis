@@ -227,6 +227,48 @@ class PortfolioService:
         except (DuplicateTradeUidError, DuplicateTradeDedupHashError) as exc:
             raise PortfolioConflictError(str(exc)) from exc
 
+    def set_position(
+        self,
+        *,
+        account_id: int,
+        symbol: str,
+        quantity: float,
+        avg_cost: float,
+        market: Optional[str] = None,
+        currency: Optional[str] = None,
+        note: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        symbol_norm = self._normalize_symbol_for_storage(symbol)
+        if not symbol_norm:
+            raise ValueError("symbol is required")
+        if quantity <= 0:
+            raise ValueError("quantity must be > 0")
+        today = date.today()
+        with self.repo.portfolio_write_session() as session:
+            account = self._require_active_account_in_session(session=session, account_id=account_id)
+            market_norm = self._normalize_market(market or account.market)
+            currency_norm = self._normalize_currency(currency or self._default_currency_for_market(market_norm))
+            # 清除同代码已有交易，以单笔合成买入替代
+            self.repo.delete_trades_by_symbol_in_session(
+                session=session, account_id=account_id, symbol=symbol_norm,
+            )
+            row = self.repo.add_trade_in_session(
+                session=session,
+                account_id=account_id,
+                trade_uid=None,
+                symbol=symbol_norm,
+                market=market_norm,
+                currency=currency_norm,
+                trade_date=today,
+                side="buy",
+                quantity=float(quantity),
+                price=float(avg_cost),
+                fee=0.0,
+                tax=0.0,
+                note=(note or "").strip() or "直接设置仓位",
+            )
+            return {"id": int(row.id)}
+
     def record_cash_ledger(
         self,
         *,
@@ -783,8 +825,8 @@ class PortfolioService:
                 price = float(event.price or 0.0)
                 fee = float(event.fee or 0.0)
                 tax = float(event.tax or 0.0)
-                if qty <= 0 or price <= 0:
-                    raise ValueError(f"Invalid trade quantity or price for {event.symbol}")
+                if qty <= 0:
+                    raise ValueError(f"Invalid trade quantity for {event.symbol}")
 
                 gross = qty * price
                 side = (event.side or "").lower().strip()
@@ -1022,7 +1064,7 @@ class PortfolioService:
                 unrealized_base = 0.0
 
             unrealized_pct = None
-            if abs(cost_base) > EPS:
+            if cost_base > EPS:
                 unrealized_pct = unrealized_base / cost_base * 100.0
 
             position_rows.append(

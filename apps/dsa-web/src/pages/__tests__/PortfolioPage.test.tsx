@@ -9,7 +9,6 @@ const {
   getSnapshot,
   getRisk,
   refreshFx,
-  listImportBrokers,
   listTrades,
   listCashLedger,
   listCorporateActions,
@@ -19,15 +18,12 @@ const {
   deleteCashLedger,
   createCorporateAction,
   deleteCorporateAction,
-  parseCsvImport,
-  commitCsvImport,
   createAccount,
 } = vi.hoisted(() => ({
   getAccounts: vi.fn(),
   getSnapshot: vi.fn(),
   getRisk: vi.fn(),
   refreshFx: vi.fn(),
-  listImportBrokers: vi.fn(),
   listTrades: vi.fn(),
   listCashLedger: vi.fn(),
   listCorporateActions: vi.fn(),
@@ -37,8 +33,6 @@ const {
   deleteCashLedger: vi.fn(),
   createCorporateAction: vi.fn(),
   deleteCorporateAction: vi.fn(),
-  parseCsvImport: vi.fn(),
-  commitCsvImport: vi.fn(),
   createAccount: vi.fn(),
 }));
 
@@ -48,7 +42,6 @@ vi.mock('../../api/portfolio', () => ({
     getSnapshot,
     getRisk,
     refreshFx,
-    listImportBrokers,
     listTrades,
     listCashLedger,
     listCorporateActions,
@@ -58,9 +51,8 @@ vi.mock('../../api/portfolio', () => ({
     deleteCashLedger,
     createCorporateAction,
     deleteCorporateAction,
-    parseCsvImport,
-    commitCsvImport,
     createAccount,
+    setPosition: vi.fn().mockResolvedValue({ id: 1 }),
   },
 }));
 
@@ -211,9 +203,6 @@ describe('PortfolioPage FX refresh', () => {
       staleCount: 0,
       errorCount: 0,
     });
-    listImportBrokers.mockResolvedValue({
-      brokers: [{ broker: 'huatai', aliases: [], displayName: '华泰' }],
-    });
     listTrades.mockResolvedValue({ items: [], total: 0, page: 1, pageSize: 20 });
     listCashLedger.mockResolvedValue({ items: [], total: 0, page: 1, pageSize: 20 });
     listCorporateActions.mockResolvedValue({ items: [], total: 0, page: 1, pageSize: 20 });
@@ -223,16 +212,6 @@ describe('PortfolioPage FX refresh', () => {
     deleteCashLedger.mockResolvedValue({ deleted: 1 });
     createCorporateAction.mockResolvedValue({ id: 1 });
     deleteCorporateAction.mockResolvedValue({ deleted: 1 });
-    parseCsvImport.mockResolvedValue({ broker: 'huatai', recordCount: 0, skippedCount: 0, errorCount: 0, records: [], errors: [] });
-    commitCsvImport.mockResolvedValue({
-      accountId: 1,
-      recordCount: 0,
-      insertedCount: 0,
-      duplicateCount: 0,
-      failedCount: 0,
-      dryRun: true,
-      errors: [],
-    });
     createAccount.mockResolvedValue({ id: 1 });
   });
 

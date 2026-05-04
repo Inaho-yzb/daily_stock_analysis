@@ -144,6 +144,16 @@ export interface PortfolioRiskResponse {
   };
 }
 
+export interface PortfolioPositionSetRequest {
+  accountId: number;
+  symbol: string;
+  market?: 'cn' | 'hk' | 'us';
+  currency?: string;
+  quantity: number;
+  avgCost: number;
+  note?: string;
+}
+
 export interface PortfolioTradeCreateRequest {
   accountId: number;
   symbol: string;
@@ -249,48 +259,6 @@ export interface PortfolioCorporateActionListResponse {
   total: number;
   page: number;
   pageSize: number;
-}
-
-export interface PortfolioImportTradeItem {
-  tradeDate: string;
-  symbol: string;
-  side: PortfolioSide;
-  quantity: number;
-  price: number;
-  fee: number;
-  tax: number;
-  tradeUid?: string | null;
-  dedupHash: string;
-  currency?: string | null;
-}
-
-export interface PortfolioImportParseResponse {
-  broker: string;
-  recordCount: number;
-  skippedCount: number;
-  errorCount: number;
-  records: PortfolioImportTradeItem[];
-  errors: string[];
-}
-
-export interface PortfolioImportCommitResponse {
-  accountId: number;
-  recordCount: number;
-  insertedCount: number;
-  duplicateCount: number;
-  failedCount: number;
-  dryRun: boolean;
-  errors: string[];
-}
-
-export interface PortfolioImportBrokerItem {
-  broker: string;
-  aliases: string[];
-  displayName?: string;
-}
-
-export interface PortfolioImportBrokerListResponse {
-  brokers: PortfolioImportBrokerItem[];
 }
 
 export interface PortfolioFxRefreshResponse {
