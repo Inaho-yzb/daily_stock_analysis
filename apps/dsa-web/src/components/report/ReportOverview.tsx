@@ -122,11 +122,11 @@ export const ReportOverview: React.FC<ReportOverviewProps> = ({
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       {/* 主信息区 - 两列布局，items-stretch 确保右侧与左侧同高 */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-stretch">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
         {/* 左侧：股票信息与结论 */}
-        <div className="lg:col-span-2 space-y-5">
+        <div className="lg:col-span-2 space-y-6">
           {/* 股票头部 */}
           <Card variant="gradient" padding="md" className="home-report-hero">
             <div className="flex items-start justify-between mb-5">
@@ -171,7 +171,7 @@ export const ReportOverview: React.FC<ReportOverviewProps> = ({
           </Card>
 
           {/* 操作建议和趋势预测 */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* 操作建议 */}
             <Card
               variant="bordered"

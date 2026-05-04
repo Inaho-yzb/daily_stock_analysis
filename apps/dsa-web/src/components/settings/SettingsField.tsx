@@ -33,10 +33,6 @@ function serializeMultiValues(values: string[]): string {
   return values.map((entry) => entry.trim()).join(',');
 }
 
-function inferPasswordIconType(key: string): 'password' | 'key' {
-  return key.toUpperCase().includes('PASSWORD') ? 'password' : 'key';
-}
-
 interface SettingsFieldProps {
   item: SystemConfigItem;
   value: string;
@@ -101,7 +97,6 @@ function renderFieldControl(
   }
 
   if (controlType === 'password') {
-    const iconType = inferPasswordIconType(item.key);
 
     if (isMultiValue) {
       const values = parseMultiValues(value);
@@ -114,7 +109,6 @@ function renderFieldControl(
                 <Input
                   type="password"
                   allowTogglePassword
-                  iconType={iconType}
                   id={index === 0 ? controlId : `${controlId}-${index}`}
                   readOnly={!isPasswordEditable}
                   onFocus={onPasswordFocus}
@@ -163,7 +157,6 @@ function renderFieldControl(
       <Input
         type="password"
         allowTogglePassword
-        iconType={iconType}
         id={controlId}
         readOnly={!isPasswordEditable}
         onFocus={onPasswordFocus}

@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { ThemeProvider } from '../../theme/ThemeProvider';
 import { Shell } from '../Shell';
@@ -19,6 +19,11 @@ vi.mock('../../../stores/agentChatStore', () => ({
 }));
 
 beforeAll(() => {
+  window.ResizeObserver = class ResizeObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
   Object.defineProperty(window, 'matchMedia', {
     writable: true,
     value: vi.fn().mockImplementation((query: string) => ({
@@ -35,56 +40,32 @@ beforeAll(() => {
 });
 
 describe('Shell', () => {
-  it.skip('renders navigation, theme toggle and completion badge', () => {
+  const renderShell = (initialRoute = '/chat') =>
     render(
-      <MemoryRouter initialEntries={['/chat']}>
+      <MemoryRouter initialEntries={[initialRoute]}>
         <ThemeProvider>
-          <Shell>
-            <div>page content</div>
-          </Shell>
+          <Routes>
+            <Route element={<Shell />}>
+              <Route path="/chat" element={<div>page content</div>} />
+              <Route path="/" element={<div>home</div>} />
+            </Route>
+          </Routes>
         </ThemeProvider>
       </MemoryRouter>
     );
 
-    expect(screen.getAllByRole('button', { name: '切换主题' }).length).toBeGreaterThan(0);
-    expect(screen.getByRole('link', { name: '问股' })).toBeInTheDocument();
-    expect(screen.getByTestId('chat-completion-badge')).toBeInTheDocument();
-    const logoutButton = screen.getByRole('button', { name: '退出' });
-    expect(logoutButton).toBeInTheDocument();
-    expect(logoutButton).toHaveClass('cursor-pointer');
-  });
-
-  it.skip('opens the theme menu from the sidebar toggle', async () => {
-    render(
-      <MemoryRouter initialEntries={['/chat']}>
-        <ThemeProvider>
-          <Shell>
-            <div>page content</div>
-          </Shell>
-        </ThemeProvider>
-      </MemoryRouter>
-    );
-
-    fireEvent.click(screen.getAllByRole('button', { name: '切换主题' })[0]);
-
-    expect(await screen.findByRole('menu', { name: '主题模式' })).toBeInTheDocument();
+  it('renders navigation and logout', () => {
+    renderShell('/chat');
+    expect(screen.getByText('首页')).toBeInTheDocument();
+    expect(screen.getByText('问股')).toBeInTheDocument();
+    expect(screen.getByLabelText('退出登录')).toBeInTheDocument();
   });
 
   it('shows a confirmation dialog before logout', async () => {
-    render(
-      <MemoryRouter initialEntries={['/chat']}>
-        <ThemeProvider>
-          <Shell>
-            <div>page content</div>
-          </Shell>
-        </ThemeProvider>
-      </MemoryRouter>
-    );
-
-    fireEvent.click(screen.getByRole('button', { name: '退出' }));
-
-    expect(await screen.findByRole('heading', { name: '退出登录' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: '确认退出' }));
+    renderShell('/chat');
+    fireEvent.click(screen.getByLabelText('退出登录'));
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('确认退出'));
     expect(mockLogout).toHaveBeenCalled();
   });
 });

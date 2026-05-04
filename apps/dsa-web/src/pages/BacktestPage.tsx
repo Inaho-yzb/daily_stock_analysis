@@ -1,6 +1,6 @@
 import type React from 'react';
 import { useState, useEffect, useCallback } from 'react';
-import { Check, Minus, X } from 'lucide-react';
+import { CheckOutlined, MinusOutlined, CloseOutlined } from '@ant-design/icons';
 import { backtestApi } from '../api/backtest';
 import type { ParsedApiError } from '../api/error';
 import { getParsedApiError } from '../api/error';
@@ -27,9 +27,9 @@ function outcomeBadge(outcome?: string) {
   if (!outcome) return <Badge variant="default">--</Badge>;
   switch (outcome) {
     case 'win':
-      return <Badge variant="success" glow>WIN</Badge>;
+      return <Badge variant="success">WIN</Badge>;
     case 'loss':
-      return <Badge variant="danger" glow>LOSS</Badge>;
+      return <Badge variant="danger">LOSS</Badge>;
     case 'neutral':
       return <Badge variant="warning">NEUTRAL</Badge>;
     default:
@@ -72,7 +72,7 @@ function boolIcon(value?: boolean | null) {
         aria-label="yes"
       >
         <StatusDot tone="success" className="backtest-status-chip-dot" />
-        <Check className="h-3.5 w-3.5" />
+        <CheckOutlined />
       </span>
     );
   }
@@ -84,7 +84,7 @@ function boolIcon(value?: boolean | null) {
         aria-label="no"
       >
         <StatusDot tone="danger" className="backtest-status-chip-dot" />
-        <X className="h-3.5 w-3.5" />
+        <CloseOutlined />
       </span>
     );
   }
@@ -95,7 +95,7 @@ function boolIcon(value?: boolean | null) {
       aria-label="unknown"
     >
       <StatusDot tone="neutral" className="backtest-status-chip-dot" />
-      <Minus className="h-3.5 w-3.5" />
+      <MinusOutlined />
     </span>
   );
 }
@@ -531,7 +531,6 @@ const BacktestPage: React.FC = () => {
                           {(row.trendPrediction || row.operationAdvice) ? (
                             <Tooltip
                               content={[row.trendPrediction, row.operationAdvice].filter(Boolean).join(' / ')}
-                              focusable
                             >
                               <div className="flex flex-col gap-1">
                                 <span className="block truncate">{row.trendPrediction || '--'}</span>

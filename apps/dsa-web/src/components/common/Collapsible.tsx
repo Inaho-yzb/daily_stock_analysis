@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { cn } from '../../utils/cn';
+import type React from 'react';
+import { Collapse } from 'antd';
 
 interface CollapsibleProps {
   title: string;
@@ -9,9 +9,6 @@ interface CollapsibleProps {
   className?: string;
 }
 
-/**
- * Collapsible panel with animated expand and collapse behavior.
- */
 export const Collapsible: React.FC<CollapsibleProps> = ({
   title,
   children,
@@ -19,42 +16,23 @@ export const Collapsible: React.FC<CollapsibleProps> = ({
   icon,
   className = '',
 }) => {
-  const [isOpen, setIsOpen] = useState(defaultOpen);
-
   return (
-    <div
-      className={cn(
-        'overflow-hidden rounded-2xl border border-subtle bg-card/70 shadow-soft-card transition-all duration-300',
-        'hover:border-accent',
-        className,
-      )}
-    >
-      <button
-        type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        className="flex w-full items-center justify-between px-4 py-3 text-left transition-colors hover:bg-hover"
-      >
-        <div className="flex items-center gap-3">
-          {icon && <span className="text-cyan">{icon}</span>}
-          <span className="font-medium text-foreground">{title}</span>
-        </div>
-        <svg
-          className={cn('h-5 w-5 text-secondary-text transition-transform duration-300', isOpen && 'rotate-180')}
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
-      </button>
-
-      <div
-        className={cn('overflow-hidden transition-all duration-300 ease-in-out', isOpen ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0')}
-      >
-        <div className="border-t border-subtle px-4 pb-4 pt-2">
-          {children}
-        </div>
-      </div>
-    </div>
+    <Collapse
+      defaultActiveKey={defaultOpen ? ['panel'] : []}
+      className={className}
+      expandIconPosition="end"
+      items={[
+        {
+          key: 'panel',
+          label: (
+            <span className="flex items-center gap-2">
+              {icon}
+              {title}
+            </span>
+          ),
+          children,
+        },
+      ]}
+    />
   );
 };

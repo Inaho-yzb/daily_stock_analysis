@@ -132,7 +132,7 @@ export const AuthSettingsCard: React.FC = () => {
                   label="当前管理员密码"
                   type="password"
                   allowTogglePassword
-                  iconType="password"
+
                   value={currentPassword}
                   onChange={(event) => setCurrentPassword(event.target.value)}
                   autoComplete="current-password"
@@ -151,7 +151,7 @@ export const AuthSettingsCard: React.FC = () => {
                     label="设置管理员密码"
                     type="password"
                     allowTogglePassword
-                    iconType="password"
+  
                     value={password}
                     onChange={(event) => setPassword(event.target.value)}
                     autoComplete="new-password"
@@ -164,7 +164,7 @@ export const AuthSettingsCard: React.FC = () => {
                     label="确认新密码"
                     type="password"
                     allowTogglePassword
-                    iconType="password"
+  
                     value={passwordConfirm}
                     onChange={(event) => setPasswordConfirm(event.target.value)}
                     autoComplete="new-password"

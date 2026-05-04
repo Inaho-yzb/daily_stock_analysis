@@ -1,5 +1,5 @@
 import type React from 'react';
-import { Button, InlineAlert } from '../common';
+import { Alert, Button } from 'antd';
 
 interface SettingsAlertProps {
   title: string;
@@ -10,8 +10,8 @@ interface SettingsAlertProps {
   className?: string;
 }
 
-const variantMap: Record<NonNullable<SettingsAlertProps['variant']>, 'danger' | 'success' | 'warning'> = {
-  error: 'danger',
+const typeMap: Record<string, 'error' | 'success' | 'warning'> = {
+  error: 'error',
   success: 'success',
   warning: 'warning',
 };
@@ -25,21 +25,19 @@ export const SettingsAlert: React.FC<SettingsAlertProps> = ({
   className = '',
 }) => {
   return (
-    <InlineAlert
-      title={title}
-      message={message}
-      variant={variantMap[variant]}
+    <Alert
+      type={typeMap[variant]}
+      message={title}
+      description={message}
+      showIcon
       className={className}
-      action={actionLabel && onAction ? (
-        <Button
-          type="button"
-          variant="settings-secondary"
-          size="xsm"
-          onClick={onAction}
-        >
-          {actionLabel}
-        </Button>
-      ) : undefined}
+      action={
+        actionLabel && onAction ? (
+          <Button size="small" onClick={onAction}>
+            {actionLabel}
+          </Button>
+        ) : undefined
+      }
     />
   );
 };

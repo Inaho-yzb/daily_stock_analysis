@@ -99,11 +99,10 @@ export const ReportMarkdown: React.FC<ReportMarkdownProps> = ({
 
   return (
     <Drawer
-      isOpen={isOpen}
+      open={isOpen}
       onClose={handleClose}
-      width="max-w-3xl"
+      width={720}
       zIndex={100}
-      backdropClassName="bg-background/56 backdrop-blur-[2px]"
     >
       {/* Custom Header */}
       <div className="flex items-center justify-between gap-3 mb-4">

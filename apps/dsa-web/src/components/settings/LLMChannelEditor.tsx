@@ -118,6 +118,8 @@ const ChannelRow: React.FC<ChannelRowProps> = ({
   onTest,
   onDiscoverModels,
 }) => {
+  void visibleKey;
+  void onToggleKeyVisibility;
   const preset = getProviderTemplate(channel.name);
   const showProviderTemplateDetails = isKnownProviderTemplate(channel.name);
   const displayName = preset?.label || channel.name;
@@ -305,9 +307,6 @@ const ChannelRow: React.FC<ChannelRowProps> = ({
             label="API Key"
             type="password"
             allowTogglePassword
-            iconType="key"
-            passwordVisible={visibleKey}
-            onPasswordVisibleChange={(nextVisible) => onToggleKeyVisibility(index, nextVisible)}
             value={channel.apiKey}
             disabled={busy}
             onChange={(e) => onUpdate(index, 'apiKey', e.target.value)}

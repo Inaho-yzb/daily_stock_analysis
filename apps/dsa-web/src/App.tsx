@@ -11,6 +11,7 @@ import PortfolioPage from './pages/PortfolioPage';
 import { ApiErrorAlert, Shell } from './components/common';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { useAgentChatStore } from './stores/agentChatStore';
+import { AntdThemeProvider } from './theme/AntdThemeProvider';
 import './App.css';
 
 const AppContent: React.FC = () => {
@@ -77,7 +78,9 @@ const App: React.FC = () => {
   return (
     <Router>
       <AuthProvider>
-        <AppContent />
+        <AntdThemeProvider>
+          <AppContent />
+        </AntdThemeProvider>
       </AuthProvider>
     </Router>
   );

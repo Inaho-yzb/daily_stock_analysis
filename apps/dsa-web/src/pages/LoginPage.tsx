@@ -1,7 +1,7 @@
 import type React from 'react';
 import { useState, useEffect } from 'react';
 import { motion, useMotionValue, useTransform, useSpring } from "motion/react";
-import { Lock, Loader2, Cpu, TrendingUp, Network, ShieldCheck } from "lucide-react";
+import { LockOutlined, LoadingOutlined, CloudServerOutlined, RiseOutlined, GlobalOutlined, SafetyOutlined } from '@ant-design/icons';
 import { Button, Input, ParticleBackground } from '../components/common';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { ParsedApiError } from '../api/error';
@@ -109,8 +109,8 @@ const LoginPage: React.FC = () => {
             className="pointer-events-none absolute -top-[20vh] -z-10 opacity-80"
           >
             <div className="relative flex h-[120vh] w-[120vh] items-center justify-center rounded-full border border-[var(--login-accent-soft)] bg-gradient-to-br from-[var(--login-accent-soft)] to-[hsl(214_100%_20%_/_0.18)] shadow-[inset_0_0_200px_var(--login-accent-glow)] blur-[4px]">
-              <Cpu className="h-[70vh] w-[70vh] text-[hsl(200_80%_22%_/_0.4)] brightness-50" />
-              <TrendingUp className="absolute h-[25vh] w-[25vh] translate-x-[15vh] translate-y-[15vh] text-emerald-900/30 brightness-50" />
+              <CloudServerOutlined className="h-[70vh] w-[70vh] text-[hsl(200_80%_22%_/_0.4)] brightness-50" />
+              <RiseOutlined className="absolute h-[25vh] w-[25vh] translate-x-[15vh] translate-y-[15vh] text-emerald-900/30 brightness-50" />
             </div>
           </motion.div>
 
@@ -130,7 +130,7 @@ const LoginPage: React.FC = () => {
             transition={{ delay: 0.3 }}
             className="mt-6 flex items-center gap-2 rounded-full border border-[var(--login-accent-border)] bg-[var(--login-accent-soft)] px-3 py-1 text-[10px] font-medium text-[var(--login-accent-text)] backdrop-blur-sm"
           >
-            <Network className="h-3 w-3" />
+            <GlobalOutlined />
             <span>V3.X QUANTITATIVE SYSTEM</span>
           </motion.div>
         </motion.div>
@@ -153,12 +153,12 @@ const LoginPage: React.FC = () => {
               <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight text-[var(--login-text-primary)]">
                 {isFirstTime ? (
                   <>
-                    <ShieldCheck className="h-6 w-6 text-emerald-400" />
+                    <SafetyOutlined className="h-6 w-6 text-emerald-400" />
                     <span>设置初始密码</span>
                   </>
                 ) : (
                   <>
-                    <Lock className="h-5 w-5 text-[var(--login-accent-text)]" />
+                    <LockOutlined className="h-5 w-5 text-[var(--login-accent-text)]" />
                     <span>管理员登录</span>
                   </>
                 )}
@@ -175,9 +175,7 @@ const LoginPage: React.FC = () => {
                 <Input
                   id="password"
                   type="password"
-                  appearance="login"
                   allowTogglePassword
-                  iconType="password"
                   label={isFirstTime ? '管理员密码' : '登录密码'}
                   placeholder={isFirstTime ? '请设置 6 位以上密码' : '请输入密码'}
                   value={password}
@@ -191,9 +189,7 @@ const LoginPage: React.FC = () => {
                   <Input
                     id="passwordConfirm"
                     type="password"
-                    appearance="login"
                     allowTogglePassword
-                    iconType="password"
                     label="确认密码"
                     placeholder="再次确认管理员密码"
                     value={passwordConfirm}
@@ -229,7 +225,7 @@ const LoginPage: React.FC = () => {
                 <div className="relative z-10 flex items-center justify-center gap-2">
                   {isSubmitting ? (
                     <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <LoadingOutlined className="h-4 w-4" spin />
                       <span>{isFirstTime ? '初始化中...' : '正在建立连接...'}</span>
                     </>
                   ) : (

@@ -68,7 +68,7 @@ export const ChangePasswordCard: React.FC = () => {
               id="change-pass-current"
               type="password"
               allowTogglePassword
-              iconType="password"
+
               label="当前密码"
               placeholder="输入当前密码"
               value={currentPassword}
@@ -83,7 +83,7 @@ export const ChangePasswordCard: React.FC = () => {
               id="change-pass-new"
               type="password"
               allowTogglePassword
-              iconType="password"
+
               label="新密码"
               hint="至少 6 位。"
               placeholder="输入新密码"
@@ -100,7 +100,6 @@ export const ChangePasswordCard: React.FC = () => {
             id="change-pass-confirm"
             type="password"
             allowTogglePassword
-            iconType="password"
             label="确认新密码"
             placeholder="再次输入新密码"
             value={newPasswordConfirm}

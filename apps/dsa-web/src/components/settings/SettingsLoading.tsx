@@ -1,13 +1,13 @@
 import type React from 'react';
+import { Skeleton, Card } from 'antd';
 
 export const SettingsLoading: React.FC = () => {
   return (
-    <div className="space-y-4 animate-fade-in">
+    <div className="space-y-4">
       {Array.from({ length: 6 }).map((_, index) => (
-        <div key={index} className="rounded-[1.15rem] border settings-border bg-[var(--settings-surface)] p-4 shadow-soft-card">
-          <div className="settings-skeleton-strong h-3 w-32 rounded" />
-          <div className="settings-skeleton-soft mt-3 h-10 rounded-lg" />
-        </div>
+        <Card key={index}>
+          <Skeleton active paragraph={{ rows: 1 }} />
+        </Card>
       ))}
     </div>
   );
