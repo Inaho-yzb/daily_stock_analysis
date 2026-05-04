@@ -79,7 +79,7 @@ start_server() {
   export API_PORT=$PORT_PRODUCTION
   export ENV=production
 
-  nohup uv run uvicorn \
+  nohup uv run python -m uvicorn \
     --app-dir "$ROOT_DIR" \
     --host 0.0.0.0 \
     --port "$PORT_PRODUCTION" \
