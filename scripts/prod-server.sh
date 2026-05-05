@@ -9,7 +9,7 @@ set -euo pipefail
 #   2. 直接启动 uvicorn（多 workers），不经过 main.py 的 daemon 线程
 #   3. 不使用 Vite 开发服务器，前端以静态文件方式提供服务
 #   4. 无 --reload 热重载
-#   5. 启动时自动构建前端（如果静态文件不存在或显式指定 --build）
+#   5. 启动时自动重新编译前端
 # ==============================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -84,10 +84,8 @@ start_server() {
     install_deps || return 1
   fi
 
-  # 检查静态文件，缺失则自动构建
-  if ! check_frontend; then
-    build_frontend
-  fi
+  # 每次启动重新编译前端
+  build_frontend
 
   log "启动生产服务 (port $PORT_PRODUCTION, workers $UVICORN_WORKERS)..."
   cd "$ROOT_DIR"
@@ -206,7 +204,7 @@ case "${1:-}" in
     echo ""
     echo "用法: $0 {start|stop|restart|status|build}"
     echo ""
-    echo "   start   启动生产后端服务（前端缺失时自动构建）"
+    echo "   start   启动生产后端服务（每次启动自动重新编译前端）"
     echo "   stop    停止生产后端服务"
     echo "   restart 重启生产后端服务"
     echo "   status  查看运行状态（含健康检查）"

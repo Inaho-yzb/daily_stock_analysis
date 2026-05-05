@@ -34,6 +34,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxext6 \
     && rm -rf /var/lib/apt/lists/*
 
+# 安装 Node.js 20.x（用于容器启动时编译前端）
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y nodejs && \
+    rm -rf /var/lib/apt/lists/*
+
 # 复制依赖文件
 COPY requirements.txt .
 
@@ -49,6 +54,8 @@ COPY patch/ ./patch/
 COPY src/ ./src/
 COPY strategies/ ./strategies/
 COPY --from=web-builder /app/static ./static/
+# 复制前端源码及 node_modules（用于容器启动时重新编译）
+COPY --from=web-builder /app/apps/dsa-web ./apps/dsa-web
 
 # 创建数据目录
 RUN mkdir -p /app/data /app/logs /app/reports
@@ -71,6 +78,11 @@ VOLUME ["/app/data", "/app/logs", "/app/reports"]
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
     CMD curl -f http://localhost:8000/api/health || curl -f http://localhost:8000/health \
     || python -c "import sys; sys.exit(0)"
+
+# 容器启动脚本（编译前端后启动服务）
+COPY docker/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+ENTRYPOINT ["/entrypoint.sh"]
 
 # 默认命令（可被覆盖）
 CMD ["python", "main.py", "--schedule"]
