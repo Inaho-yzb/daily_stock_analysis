@@ -283,16 +283,19 @@ const PortfolioPage: React.FC = () => {
       setSnapshot(snapshotData);
       setError(null);
 
-      try {
-        const riskData = await portfolioApi.getRisk({
-          accountId: queryAccountId,
-          costMethod,
-        });
-        setRisk(riskData);
-      } catch (riskErr) {
-        setRisk(null);
-        const parsed = getParsedApiError(riskErr);
-        setRiskWarning(parsed.message || '风险数据获取失败，已降级为仅展示快照数据。');
+      // 风险数据依赖三方API，仅在明确请求行情数据时加载（skipMarketData=false）
+      if (!skipMarketData) {
+        try {
+          const riskData = await portfolioApi.getRisk({
+            accountId: queryAccountId,
+            costMethod,
+          });
+          setRisk(riskData);
+        } catch (riskErr) {
+          setRisk(null);
+          const parsed = getParsedApiError(riskErr);
+          setRiskWarning(parsed.message || '风险数据获取失败，已降级为仅展示快照数据。');
+        }
       }
     } catch (err) {
       setSnapshot(null);
@@ -601,6 +604,10 @@ const PortfolioPage: React.FC = () => {
     }
   };
 
+  const handleRefreshMarketData = async () => {
+    await loadSnapshotAndRisk(false);
+  };
+
   const handleRefresh = async () => {
     await Promise.all([loadAccounts(), loadSnapshotAndRisk(false), loadEvents()]);
   };
@@ -752,6 +759,14 @@ const PortfolioPage: React.FC = () => {
                   }}
                 >
                   {showCreateAccount ? '收起新建' : '新建账户'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleRefreshMarketData()}
+                  disabled={isLoading || fxRefreshing}
+                  className="btn-primary text-sm flex-1"
+                >
+                  {isLoading ? '加载中...' : '刷新行情'}
                 </button>
                 <button
                   type="button"

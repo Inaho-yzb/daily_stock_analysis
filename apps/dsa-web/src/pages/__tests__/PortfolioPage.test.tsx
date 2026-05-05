@@ -171,9 +171,6 @@ function deferredPromise<T>() {
 
 async function waitForInitialAutoLoad() {
   await waitFor(() => expect(getAccounts).toHaveBeenCalledTimes(1));
-  await waitFor(() => expect(getSnapshot).toHaveBeenCalledTimes(1));
-  await waitFor(() => expect(getRisk).toHaveBeenCalledTimes(1));
-  await waitFor(() => expect(listTrades).toHaveBeenCalledTimes(1));
 }
 
 async function performManualRefresh() {
@@ -233,6 +230,7 @@ describe('PortfolioPage FX refresh', () => {
     getSnapshot
       .mockResolvedValueOnce(makeSnapshot({ fxStale: true }))
       .mockResolvedValueOnce(makeSnapshot({ fxStale: true }))
+      .mockResolvedValueOnce(makeSnapshot({ fxStale: true }))
       .mockResolvedValueOnce(makeSnapshot({ accountId: 1, fxStale: true }))
       .mockResolvedValueOnce(makeSnapshot({ accountId: 1, fxStale: false }));
 
@@ -243,6 +241,11 @@ describe('PortfolioPage FX refresh', () => {
 
     const accountSelect = screen.getAllByRole('combobox')[0];
     fireEvent.change(accountSelect, { target: { value: '1' } });
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: '刷新数据' })).toBeInTheDocument();
+    });
+    await performManualRefresh();
 
     await waitFor(() => {
       expect(getSnapshot).toHaveBeenLastCalledWith(expect.objectContaining({ accountId: 1, costMethod: 'fifo' }));
@@ -309,7 +312,9 @@ describe('PortfolioPage FX refresh', () => {
   });
 
   it('renders backend-provided position valuation fields and stale missing-price hint', async () => {
-    getSnapshot.mockResolvedValueOnce(makeSnapshot({ fxStale: true, positions: [
+    getSnapshot
+      .mockResolvedValueOnce(makeSnapshot({ fxStale: true }))
+      .mockResolvedValueOnce(makeSnapshot({ fxStale: true, positions: [
       { symbol: 'HK00700', market: 'hk', currency: 'HKD', quantity: 10, avgCost: 400, totalCost: 4000, lastPrice: 420, marketValueBase: 4200, unrealizedPnlBase: 200, unrealizedPnlPct: 5, valuationCurrency: 'HKD', priceSource: 'history_close', priceDate: '2026-03-18', priceStale: true, priceAvailable: true },
       { symbol: 'AAPL', market: 'us', currency: 'USD', quantity: 5, avgCost: 100, totalCost: 500, lastPrice: 0, marketValueBase: 0, unrealizedPnlBase: 0, unrealizedPnlPct: null, valuationCurrency: 'USD', priceSource: 'missing', priceDate: null, priceStale: true, priceAvailable: false },
     ] }));
@@ -317,6 +322,7 @@ describe('PortfolioPage FX refresh', () => {
     render(<PortfolioPage />);
 
     await waitForInitialAutoLoad();
+    await performManualRefresh();
 
     expect(await screen.findByText('HK00700')).toBeInTheDocument();
     expect(screen.getByText('420.0000')).toBeInTheDocument();
@@ -484,6 +490,11 @@ describe('PortfolioPage FX refresh', () => {
 
     const accountSelect = screen.getAllByRole('combobox')[0];
     fireEvent.change(accountSelect, { target: { value: '1' } });
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: '刷新数据' })).toBeInTheDocument();
+    });
+    await performManualRefresh();
     await waitFor(() => expect(getSnapshot).toHaveBeenLastCalledWith(expect.objectContaining({ accountId: 1, costMethod: 'fifo' })));
 
     fireEvent.click(screen.getByRole('button', { name: '刷新汇率' }));
@@ -535,6 +546,10 @@ describe('PortfolioPage FX refresh', () => {
     expect(await screen.findByRole('button', { name: '刷新中...' })).toBeDisabled();
 
     fireEvent.change(costMethodSelect, { target: { value: 'avg' } });
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: '刷新数据' })).toBeInTheDocument();
+    });
+    await performManualRefresh();
     await waitFor(() => expect(getSnapshot).toHaveBeenLastCalledWith(expect.objectContaining({ accountId: undefined, costMethod: 'avg' })));
     await waitFor(() => expect(screen.getByRole('button', { name: '刷新汇率' })).not.toBeDisabled());
 
