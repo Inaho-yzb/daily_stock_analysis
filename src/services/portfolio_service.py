@@ -85,6 +85,14 @@ class PortfolioService:
 
     def __init__(self, repo: Optional[PortfolioRepository] = None):
         self.repo = repo or PortfolioRepository()
+        self._data_manager = None
+
+    def _get_data_manager(self):
+        """Lazy-load DataFetcherManager singleton per service instance."""
+        if self._data_manager is None:
+            from data_provider.base import DataFetcherManager
+            self._data_manager = DataFetcherManager()
+        return self._data_manager
 
     # ------------------------------------------------------------------
     # Account CRUD
@@ -1127,11 +1135,9 @@ class PortfolioService:
 
         return position_rows, lot_rows, market_value_base, total_cost_base, fx_stale
 
-    @staticmethod
-    def _resolve_stock_name(symbol: str, allow_realtime: bool = True) -> str:
+    def _resolve_stock_name(self, symbol: str, allow_realtime: bool = True) -> str:
         try:
-            from data_provider.base import DataFetcherManager
-            name = DataFetcherManager().get_stock_name(symbol, allow_realtime=allow_realtime)
+            name = self._get_data_manager().get_stock_name(symbol, allow_realtime=allow_realtime)
             return name or ""
         except Exception:
             return ""
@@ -1171,12 +1177,9 @@ class PortfolioService:
             is_available=False,
         )
 
-    @staticmethod
-    def _fetch_realtime_position_price(symbol: str) -> Tuple[Optional[float], Optional[str]]:
+    def _fetch_realtime_position_price(self, symbol: str) -> Tuple[Optional[float], Optional[str]]:
         try:
-            from data_provider.base import DataFetcherManager
-
-            quote = DataFetcherManager().get_realtime_quote(symbol, log_final_failure=False)
+            quote = self._get_data_manager().get_realtime_quote(symbol, log_final_failure=False)
         except Exception as exc:
             logger.warning("Failed to fetch realtime portfolio price for %s: %s", symbol, exc)
             return None, None
