@@ -1,10 +1,9 @@
 import type React from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pie, PieChart, ResponsiveContainer, Tooltip, Legend, Cell } from 'recharts';
 import { portfolioApi } from '../api/portfolio';
 import type { ParsedApiError } from '../api/error';
 import { getParsedApiError } from '../api/error';
-import { ApiErrorAlert, Card, Badge, ConfirmDialog, EmptyState, InlineAlert } from '../components/common';
+import { ApiErrorAlert, Button, Card, Badge, ConfirmDialog, EmptyState, InlineAlert } from '../components/common';
 import { toDateInputValue } from '../utils/format';
 import type {
   PortfolioAccountItem,
@@ -21,7 +20,6 @@ import type {
   PortfolioTradeListItem,
 } from '../types/portfolio';
 
-const PIE_COLORS = ['#00d4ff', '#00ff88', '#ffaa00', '#ff7a45', '#7f8cff', '#ff4466'];
 const DEFAULT_PAGE_SIZE = 20;
 type AccountOption = 'all' | number;
 type EventType = 'trade' | 'cash' | 'corporate';
@@ -163,6 +161,10 @@ const PortfolioPage: React.FC = () => {
   const [selectedAccount, setSelectedAccount] = useState<AccountOption>('all');
   const [showCreateAccount, setShowCreateAccount] = useState(false);
   const [accountCreating, setAccountCreating] = useState(false);
+  const [positionSetting, setPositionSetting] = useState(false);
+  const [tradeSubmitting, setTradeSubmitting] = useState(false);
+  const [cashSubmitting, setCashSubmitting] = useState(false);
+  const [corporateSubmitting, setCorporateSubmitting] = useState(false);
   const [accountCreateError, setAccountCreateError] = useState<string | null>(null);
   const [accountCreateSuccess, setAccountCreateSuccess] = useState<string | null>(null);
   const [accountForm, setAccountForm] = useState({
@@ -269,13 +271,14 @@ const PortfolioPage: React.FC = () => {
     }
   }, []);
 
-  const loadSnapshotAndRisk = useCallback(async () => {
+  const loadSnapshotAndRisk = useCallback(async (skipMarketData = false) => {
     setIsLoading(true);
     setRiskWarning(null);
     try {
       const snapshotData = await portfolioApi.getSnapshot({
         accountId: queryAccountId,
         costMethod,
+        skipMarketData,
       });
       setSnapshot(snapshotData);
       setError(null);
@@ -363,12 +366,13 @@ const PortfolioPage: React.FC = () => {
     await Promise.all([loadSnapshotAndRisk(), loadEventsPage(page)]);
   }, [eventPage, loadEventsPage, loadSnapshotAndRisk]);
 
+
   useEffect(() => {
     void loadAccounts();
   }, [loadAccounts]);
 
   useEffect(() => {
-    void loadSnapshotAndRisk();
+    void loadSnapshotAndRisk(true);
   }, [loadSnapshotAndRisk]);
 
   useEffect(() => {
@@ -410,33 +414,6 @@ const PortfolioPage: React.FC = () => {
     return rows;
   }, [snapshot]);
 
-  const sectorPieData = useMemo(() => {
-    const sectors = risk?.sectorConcentration?.topSectors || [];
-    return sectors
-      .slice(0, 6)
-      .map((item) => ({
-        name: item.sector,
-        value: Number(item.weightPct || 0),
-      }))
-      .filter((item) => item.value > 0);
-  }, [risk]);
-
-  const positionFallbackPieData = useMemo(() => {
-    if (!risk?.concentration?.topPositions?.length) {
-      return [];
-    }
-    return risk.concentration.topPositions
-      .slice(0, 6)
-      .map((item) => ({
-        name: item.symbol,
-        value: Number(item.weightPct || 0),
-      }))
-      .filter((item) => item.value > 0);
-  }, [risk]);
-
-  const concentrationPieData = sectorPieData.length > 0 ? sectorPieData : positionFallbackPieData;
-  const concentrationMode = sectorPieData.length > 0 ? 'sector' : 'position';
-
   const handleTradeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!writableAccountId) {
@@ -444,6 +421,7 @@ const PortfolioPage: React.FC = () => {
       return;
     }
     try {
+      setTradeSubmitting(true);
       setWriteWarning(null);
       await portfolioApi.createTrade({
         accountId: writableAccountId,
@@ -461,6 +439,8 @@ const PortfolioPage: React.FC = () => {
       setTradeForm((prev) => ({ ...prev, symbol: '', tradeUid: '', note: '' }));
     } catch (err) {
       setError(getParsedApiError(err));
+    } finally {
+      setTradeSubmitting(false);
     }
   };
 
@@ -471,6 +451,7 @@ const PortfolioPage: React.FC = () => {
       return;
     }
     try {
+      setPositionSetting(true);
       setWriteWarning(null);
       await portfolioApi.setPosition({
         accountId: writableAccountId,
@@ -485,6 +466,8 @@ const PortfolioPage: React.FC = () => {
       setPositionSetForm((prev) => ({ ...prev, symbol: '', note: '' }));
     } catch (err) {
       setError(getParsedApiError(err));
+    } finally {
+      setPositionSetting(false);
     }
   };
 
@@ -495,6 +478,7 @@ const PortfolioPage: React.FC = () => {
       return;
     }
     try {
+      setCashSubmitting(true);
       setWriteWarning(null);
       await portfolioApi.createCashLedger({
         accountId: writableAccountId,
@@ -508,6 +492,8 @@ const PortfolioPage: React.FC = () => {
       setCashForm((prev) => ({ ...prev, note: '' }));
     } catch (err) {
       setError(getParsedApiError(err));
+    } finally {
+      setCashSubmitting(false);
     }
   };
 
@@ -518,6 +504,7 @@ const PortfolioPage: React.FC = () => {
       return;
     }
     try {
+      setCorporateSubmitting(true);
       setWriteWarning(null);
       await portfolioApi.createCorporateAction({
         accountId: writableAccountId,
@@ -532,6 +519,8 @@ const PortfolioPage: React.FC = () => {
       setCorpForm((prev) => ({ ...prev, symbol: '', note: '' }));
     } catch (err) {
       setError(getParsedApiError(err));
+    } finally {
+      setCorporateSubmitting(false);
     }
   };
 
@@ -613,7 +602,7 @@ const PortfolioPage: React.FC = () => {
   };
 
   const handleRefresh = async () => {
-    await Promise.all([loadAccounts(), loadSnapshotAndRisk(), loadEvents()]);
+    await Promise.all([loadAccounts(), loadSnapshotAndRisk(false), loadEvents()]);
   };
 
   const reloadSnapshotAndRiskForScope = useCallback(async (
@@ -864,9 +853,9 @@ const PortfolioPage: React.FC = () => {
               <option value="hk">市场：港股（hk）</option>
               <option value="us">市场：美股（us）</option>
             </select>
-            <button type="submit" className="btn-secondary text-sm" disabled={accountCreating}>
-              {accountCreating ? '创建中...' : '创建账户'}
-            </button>
+            <Button type="submit" variant="secondary" size="sm" isLoading={accountCreating}>
+              创建账户
+            </Button>
           </form>
         </Card>
       ) : null}
@@ -908,8 +897,8 @@ const PortfolioPage: React.FC = () => {
         </Card>
       </section>
 
-      <section className="grid grid-cols-1 xl:grid-cols-3 gap-3">
-        <Card className="xl:col-span-2" padding="md">
+      <section className="grid grid-cols-1 gap-3">
+        <Card padding="md">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-semibold text-foreground">持仓明细</h2>
             <span className="text-xs text-secondary">共 {positionRows.length} 项</span>
@@ -927,6 +916,7 @@ const PortfolioPage: React.FC = () => {
                   <tr>
                     <th className="text-left py-2 pr-2">账户</th>
                     <th className="text-left py-2 pr-2">代码</th>
+                    <th className="text-left py-2 pr-2">名称</th>
                     <th className="text-right py-2 pr-2">数量</th>
                     <th className="text-right py-2 pr-2">均价</th>
                     <th className="text-right py-2 pr-2">现价</th>
@@ -940,6 +930,7 @@ const PortfolioPage: React.FC = () => {
                     <tr key={`${row.accountId}-${row.symbol}-${row.market}`} className="border-b border-white/5">
                       <td className="py-2 pr-2 text-secondary">{row.accountName}</td>
                       <td className="py-2 pr-2 font-mono text-foreground">{row.symbol}</td>
+                      <td className="py-2 pr-2 text-foreground">{row.name || '--'}</td>
                       <td className="py-2 pr-2 text-right">{row.quantity.toFixed(2)}</td>
                       <td className="py-2 pr-2 text-right">{row.avgCost.toFixed(4)}</td>
                       <td className="py-2 pr-2 text-right">
@@ -979,35 +970,6 @@ const PortfolioPage: React.FC = () => {
           )}
         </Card>
 
-        <Card padding="md">
-          <h2 className="text-sm font-semibold text-foreground mb-3">{concentrationMode === 'sector' ? '行业集中度分布' : '行业数据暂不可用，当前展示个股集中度'}</h2>
-          {concentrationPieData.length > 0 ? (
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={concentrationPieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={90}>
-                    {concentrationPieData.map((entry, index) => (
-                      <Cell key={`cell-${entry.name}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(value) => `${Number(value).toFixed(2)}%`} />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          ) : (
-            <EmptyState
-              title="暂无集中度数据"
-              description="风险模块完成计算后，这里会展示行业或个股维度的集中度分布。"
-              className="border-none bg-transparent px-4 py-10 shadow-none"
-            />
-          )}
-          <div className="mt-3 text-xs text-secondary space-y-1">
-            <div>展示口径: {concentrationMode === 'sector' ? '行业维度' : '个股维度（降级显示）'}</div>
-            <div>板块集中度告警: {risk?.sectorConcentration?.alert ? '是' : '否'}</div>
-            <div>Top1 权重: {formatPct(risk?.sectorConcentration?.topWeightPct ?? risk?.concentration?.topWeightPct)}</div>
-          </div>
-        </Card>
       </section>
 
       {writeBlocked && hasAccounts ? (
@@ -1074,7 +1036,7 @@ const PortfolioPage: React.FC = () => {
             </div>
             <input className={PORTFOLIO_INPUT_CLASS} placeholder="备注（可选）" value={positionSetForm.note}
               onChange={(e) => setPositionSetForm((prev) => ({ ...prev, note: e.target.value }))} />
-            <button type="submit" className="btn-primary w-full" disabled={!writableAccountId}>设置仓位</button>
+            <Button type="submit" variant="primary" className="w-full" isLoading={positionSetting} disabled={!writableAccountId}>设置仓位</Button>
           </form>
         </Card>
       </section>
@@ -1107,7 +1069,7 @@ const PortfolioPage: React.FC = () => {
                 onChange={(e) => setTradeForm((prev) => ({ ...prev, tax: e.target.value }))} />
             </div>
             <p className="text-xs text-secondary">手续费和税费可留空，系统将按 0 处理。</p>
-            <button type="submit" className="btn-secondary w-full" disabled={!writableAccountId}>提交交易</button>
+            <Button type="submit" variant="secondary" className="w-full" isLoading={tradeSubmitting} disabled={!writableAccountId}>提交交易</Button>
           </form>
         </Card>
 
@@ -1127,7 +1089,7 @@ const PortfolioPage: React.FC = () => {
               value={cashForm.amount} onChange={(e) => setCashForm((prev) => ({ ...prev, amount: e.target.value }))} required />
             <input className={PORTFOLIO_INPUT_CLASS} placeholder={`币种（可选，默认 ${writableAccount?.baseCurrency || '账户基准币'}）`} value={cashForm.currency}
               onChange={(e) => setCashForm((prev) => ({ ...prev, currency: e.target.value }))} />
-            <button type="submit" className="btn-secondary w-full" disabled={!writableAccountId}>提交资金流水</button>
+            <Button type="submit" variant="secondary" className="w-full" isLoading={cashSubmitting} disabled={!writableAccountId}>提交资金流水</Button>
           </form>
         </Card>
 
@@ -1154,7 +1116,7 @@ const PortfolioPage: React.FC = () => {
                 value={corpForm.splitRatio}
                 onChange={(e) => setCorpForm((prev) => ({ ...prev, splitRatio: e.target.value, cashDividendPerShare: '' }))} required />
             )}
-            <button type="submit" className="btn-secondary w-full" disabled={!writableAccountId}>提交企业行为</button>
+            <Button type="submit" variant="secondary" className="w-full" isLoading={corporateSubmitting} disabled={!writableAccountId}>提交企业行为</Button>
           </form>
         </Card>
       </section>

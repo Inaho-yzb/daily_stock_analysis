@@ -458,6 +458,7 @@ def get_snapshot(
     account_id: Optional[int] = Query(None, description="Optional account id, default returns all accounts"),
     as_of: Optional[date] = Query(None, description="Snapshot date, default today"),
     cost_method: str = Query("fifo", description="Cost method: fifo or avg"),
+    skip_market_data: bool = Query(False, description="Skip third-party market data, return positions with empty price fields"),
 ) -> PortfolioSnapshotResponse:
     service = PortfolioService()
     try:
@@ -465,6 +466,7 @@ def get_snapshot(
             account_id=account_id,
             as_of=as_of,
             cost_method=cost_method,
+            skip_market_data=skip_market_data,
         )
         return PortfolioSnapshotResponse(**data)
     except ValueError as exc:

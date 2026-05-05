@@ -23,6 +23,7 @@ type SnapshotQuery = {
   accountId?: number;
   asOf?: string;
   costMethod?: PortfolioCostMethod;
+  skipMarketData?: boolean;
 };
 
 type FxRefreshQuery = {
@@ -52,8 +53,8 @@ type CorporateListQuery = EventQuery & {
   actionType?: 'cash_dividend' | 'split_adjustment';
 };
 
-function buildSnapshotParams(query: SnapshotQuery): Record<string, string | number> {
-  const params: Record<string, string | number> = {};
+function buildSnapshotParams(query: SnapshotQuery): Record<string, string | number | boolean> {
+  const params: Record<string, string | number | boolean> = {};
   if (query.accountId != null) {
     params.account_id = query.accountId;
   }
@@ -62,6 +63,9 @@ function buildSnapshotParams(query: SnapshotQuery): Record<string, string | numb
   }
   if (query.costMethod) {
     params.cost_method = query.costMethod;
+  }
+  if (query.skipMarketData) {
+    params.skip_market_data = query.skipMarketData;
   }
   return params;
 }

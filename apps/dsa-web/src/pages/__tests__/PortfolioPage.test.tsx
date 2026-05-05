@@ -1,4 +1,3 @@
-import type React from 'react';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createApiError, createParsedApiError } from '../../api/error';
@@ -54,15 +53,6 @@ vi.mock('../../api/portfolio', () => ({
     createAccount,
     setPosition: vi.fn().mockResolvedValue({ id: 1 }),
   },
-}));
-
-vi.mock('recharts', () => ({
-  ResponsiveContainer: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  PieChart: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  Pie: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  Tooltip: () => null,
-  Legend: () => null,
-  Cell: () => null,
 }));
 
 type AccountItem = {
@@ -179,11 +169,25 @@ function deferredPromise<T>() {
   return { promise, resolve, reject };
 }
 
-async function waitForInitialLoad() {
+async function waitForInitialAutoLoad() {
   await waitFor(() => expect(getAccounts).toHaveBeenCalledTimes(1));
   await waitFor(() => expect(getSnapshot).toHaveBeenCalledTimes(1));
   await waitFor(() => expect(getRisk).toHaveBeenCalledTimes(1));
   await waitFor(() => expect(listTrades).toHaveBeenCalledTimes(1));
+}
+
+async function performManualRefresh() {
+  const nextSnapshot = getSnapshot.mock.calls.length + 1;
+  const nextRisk = getRisk.mock.calls.length + 1;
+  const nextTrades = listTrades.mock.calls.length + 1;
+  const nextAccounts = getAccounts.mock.calls.length + 1;
+
+  fireEvent.click(screen.getByRole('button', { name: '刷新数据' }));
+
+  await waitFor(() => expect(getSnapshot).toHaveBeenCalledTimes(nextSnapshot));
+  await waitFor(() => expect(getRisk).toHaveBeenCalledTimes(nextRisk));
+  await waitFor(() => expect(listTrades).toHaveBeenCalledTimes(nextTrades));
+  await waitFor(() => expect(getAccounts).toHaveBeenCalledTimes(nextAccounts));
 }
 
 describe('PortfolioPage FX refresh', () => {
@@ -218,7 +222,8 @@ describe('PortfolioPage FX refresh', () => {
   it('renders stale FX status with a manual refresh button', async () => {
     render(<PortfolioPage />);
 
-    await waitForInitialLoad();
+    await waitForInitialAutoLoad();
+    await performManualRefresh();
 
     expect(await screen.findByText('过期')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '刷新汇率' })).toBeInTheDocument();
@@ -227,18 +232,20 @@ describe('PortfolioPage FX refresh', () => {
   it('refreshes FX for a single selected account and only reloads snapshot/risk', async () => {
     getSnapshot
       .mockResolvedValueOnce(makeSnapshot({ fxStale: true }))
+      .mockResolvedValueOnce(makeSnapshot({ fxStale: true }))
       .mockResolvedValueOnce(makeSnapshot({ accountId: 1, fxStale: true }))
       .mockResolvedValueOnce(makeSnapshot({ accountId: 1, fxStale: false }));
 
     render(<PortfolioPage />);
 
-    await waitForInitialLoad();
+    await waitForInitialAutoLoad();
+    await performManualRefresh();
 
     const accountSelect = screen.getAllByRole('combobox')[0];
     fireEvent.change(accountSelect, { target: { value: '1' } });
 
     await waitFor(() => {
-      expect(getSnapshot).toHaveBeenLastCalledWith({ accountId: 1, costMethod: 'fifo' });
+      expect(getSnapshot).toHaveBeenLastCalledWith(expect.objectContaining({ accountId: 1, costMethod: 'fifo' }));
     });
 
     const snapshotCallsBeforeRefresh = getSnapshot.mock.calls.length;
@@ -271,7 +278,8 @@ describe('PortfolioPage FX refresh', () => {
 
     render(<PortfolioPage />);
 
-    await waitForInitialLoad();
+    await waitForInitialAutoLoad();
+    await performManualRefresh();
 
     fireEvent.click(screen.getByRole('button', { name: '刷新汇率' }));
 
@@ -292,7 +300,8 @@ describe('PortfolioPage FX refresh', () => {
 
     render(<PortfolioPage />);
 
-    await waitForInitialLoad();
+    await waitForInitialAutoLoad();
+    await performManualRefresh();
 
     fireEvent.click(screen.getByRole('button', { name: '刷新汇率' }));
 
@@ -307,7 +316,7 @@ describe('PortfolioPage FX refresh', () => {
 
     render(<PortfolioPage />);
 
-    await waitForInitialLoad();
+    await waitForInitialAutoLoad();
 
     expect(await screen.findByText('HK00700')).toBeInTheDocument();
     expect(screen.getByText('420.0000')).toBeInTheDocument();
@@ -342,7 +351,8 @@ describe('PortfolioPage FX refresh', () => {
 
     render(<PortfolioPage />);
 
-    await waitForInitialLoad();
+    await waitForInitialAutoLoad();
+    await performManualRefresh();
 
     fireEvent.click(screen.getByRole('button', { name: '刷新汇率' }));
 
@@ -362,7 +372,8 @@ describe('PortfolioPage FX refresh', () => {
 
     render(<PortfolioPage />);
 
-    await waitForInitialLoad();
+    await waitForInitialAutoLoad();
+    await performManualRefresh();
 
     fireEvent.click(screen.getByRole('button', { name: '刷新汇率' }));
 
@@ -381,7 +392,8 @@ describe('PortfolioPage FX refresh', () => {
 
     render(<PortfolioPage />);
 
-    await waitForInitialLoad();
+    await waitForInitialAutoLoad();
+    await performManualRefresh();
 
     const snapshotCallsBeforeRefresh = getSnapshot.mock.calls.length;
     const riskCallsBeforeRefresh = getRisk.mock.calls.length;
@@ -409,7 +421,8 @@ describe('PortfolioPage FX refresh', () => {
 
     render(<PortfolioPage />);
 
-    await waitForInitialLoad();
+    await waitForInitialAutoLoad();
+    await performManualRefresh();
 
     const refreshButton = screen.getByRole('button', { name: '刷新汇率' });
     fireEvent.click(refreshButton);
@@ -422,6 +435,7 @@ describe('PortfolioPage FX refresh', () => {
   it('does not keep success feedback when snapshot reload fails after FX refresh succeeds', async () => {
     getSnapshot
       .mockResolvedValueOnce(makeSnapshot({ fxStale: true }))
+      .mockResolvedValueOnce(makeSnapshot({ fxStale: true }))
       .mockRejectedValueOnce(
         createApiError(
           createParsedApiError({
@@ -433,7 +447,8 @@ describe('PortfolioPage FX refresh', () => {
 
     render(<PortfolioPage />);
 
-    await waitForInitialLoad();
+    await waitForInitialAutoLoad();
+    await performManualRefresh();
 
     fireEvent.click(screen.getByRole('button', { name: '刷新汇率' }));
 
@@ -444,7 +459,7 @@ describe('PortfolioPage FX refresh', () => {
   });
 
   it('drops late FX refresh results after switching to another account scope', async () => {
-    getAccounts.mockResolvedValueOnce(makeAccounts([{ id: 1, name: 'Main' }, { id: 2, name: 'Alt' }]));
+    getAccounts.mockResolvedValue(makeAccounts([{ id: 1, name: 'Main' }, { id: 2, name: 'Alt' }]));
     getSnapshot.mockImplementation(async ({ accountId }: { accountId?: number } = {}) => {
       if (accountId === 2) {
         return makeSnapshot({ accountId: 2, fxStale: false });
@@ -464,17 +479,18 @@ describe('PortfolioPage FX refresh', () => {
 
     render(<PortfolioPage />);
 
-    await waitForInitialLoad();
+    await waitForInitialAutoLoad();
+    await performManualRefresh();
 
     const accountSelect = screen.getAllByRole('combobox')[0];
     fireEvent.change(accountSelect, { target: { value: '1' } });
-    await waitFor(() => expect(getSnapshot).toHaveBeenLastCalledWith({ accountId: 1, costMethod: 'fifo' }));
+    await waitFor(() => expect(getSnapshot).toHaveBeenLastCalledWith(expect.objectContaining({ accountId: 1, costMethod: 'fifo' })));
 
     fireEvent.click(screen.getByRole('button', { name: '刷新汇率' }));
     expect(await screen.findByRole('button', { name: '刷新中...' })).toBeDisabled();
 
     fireEvent.change(accountSelect, { target: { value: '2' } });
-    await waitFor(() => expect(getSnapshot).toHaveBeenLastCalledWith({ accountId: 2, costMethod: 'fifo' }));
+    await waitFor(() => expect(getSnapshot).toHaveBeenLastCalledWith(expect.objectContaining({ accountId: 2, costMethod: 'fifo' })));
     await waitFor(() => expect(screen.getByRole('button', { name: '刷新汇率' })).not.toBeDisabled());
 
     const snapshotCallsAfterSwitch = getSnapshot.mock.calls.length;
@@ -510,7 +526,8 @@ describe('PortfolioPage FX refresh', () => {
 
     render(<PortfolioPage />);
 
-    await waitForInitialLoad();
+    await waitForInitialAutoLoad();
+    await performManualRefresh();
 
     const costMethodSelect = screen.getAllByRole('combobox')[1];
 
@@ -518,7 +535,7 @@ describe('PortfolioPage FX refresh', () => {
     expect(await screen.findByRole('button', { name: '刷新中...' })).toBeDisabled();
 
     fireEvent.change(costMethodSelect, { target: { value: 'avg' } });
-    await waitFor(() => expect(getSnapshot).toHaveBeenLastCalledWith({ accountId: undefined, costMethod: 'avg' }));
+    await waitFor(() => expect(getSnapshot).toHaveBeenLastCalledWith(expect.objectContaining({ accountId: undefined, costMethod: 'avg' })));
     await waitFor(() => expect(screen.getByRole('button', { name: '刷新汇率' })).not.toBeDisabled());
 
     const snapshotCallsAfterSwitch = getSnapshot.mock.calls.length;

@@ -490,6 +490,7 @@ class PortfolioService:
         account_id: Optional[int] = None,
         as_of: Optional[date] = None,
         cost_method: str = "fifo",
+        skip_market_data: bool = False,
     ) -> Dict[str, Any]:
         as_of_date = as_of or date.today()
         method = self._normalize_cost_method(cost_method)
@@ -514,7 +515,7 @@ class PortfolioService:
         }
 
         for account in account_rows:
-            account_snapshot = self._replay_account(account=account, as_of_date=as_of_date, cost_method=method)
+            account_snapshot = self._replay_account(account=account, as_of_date=as_of_date, cost_method=method, skip_market_data=skip_market_data)
 
             self.repo.replace_positions_lots_and_snapshot(
                 account_id=account.id,
@@ -777,7 +778,7 @@ class PortfolioService:
 
         return quantity_held
 
-    def _replay_account(self, *, account: Any, as_of_date: date, cost_method: str) -> Dict[str, Any]:
+    def _replay_account(self, *, account: Any, as_of_date: date, cost_method: str, skip_market_data: bool = False) -> Dict[str, Any]:
         trades = self.repo.list_trades(account.id, as_of=as_of_date)
         cash_ledger = self.repo.list_cash_ledger(account.id, as_of=as_of_date)
         corporate_actions = self.repo.list_corporate_actions(account.id, as_of=as_of_date)
@@ -936,6 +937,7 @@ class PortfolioService:
             cost_method=cost_method,
             fifo_lots=fifo_lots,
             avg_state=avg_state,
+            skip_market_data=skip_market_data,
         )
         fx_stale = fx_stale or stale_pos
 
@@ -996,6 +998,7 @@ class PortfolioService:
         cost_method: str,
         fifo_lots: Dict[Tuple[str, str, str], List[Dict[str, Any]]],
         avg_state: Dict[Tuple[str, str, str], _AvgState],
+        skip_market_data: bool = False,
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], float, float, bool]:
         position_rows: List[Dict[str, Any]] = []
         lot_rows: List[Dict[str, Any]] = []
@@ -1039,59 +1042,99 @@ class PortfolioService:
                     }
                 )
 
-            price_info = self._resolve_position_price(symbol=symbol, as_of_date=as_of_date)
-            last_price = price_info.price
+            stock_name = self._resolve_stock_name(symbol, allow_realtime=not skip_market_data)
 
-            if price_info.is_available:
-                local_market_value = qty * float(last_price)
-                market_base, stale_market, _ = self._convert_amount(
-                    amount=local_market_value,
-                    from_currency=currency,
-                    to_currency=account.base_currency,
-                    as_of_date=as_of_date,
-                )
-                cost_base, stale_cost, _ = self._convert_amount(
-                    amount=total_cost,
-                    from_currency=currency,
-                    to_currency=account.base_currency,
-                    as_of_date=as_of_date,
-                )
-                unrealized_base = market_base - cost_base
-                fx_stale = fx_stale or stale_market or stale_cost
-            else:
+            if skip_market_data:
                 market_base = 0.0
                 cost_base = 0.0
                 unrealized_base = 0.0
+                unrealized_pct = None
+                position_rows.append(
+                    {
+                        "symbol": symbol,
+                        "name": stock_name,
+                        "market": market,
+                        "currency": currency,
+                        "quantity": round(qty, 8),
+                        "avg_cost": round(avg_cost, 8),
+                        "total_cost": round(total_cost, 8),
+                        "last_price": 0.0,
+                        "market_value_base": 0.0,
+                        "unrealized_pnl_base": 0.0,
+                        "unrealized_pnl_pct": None,
+                        "valuation_currency": account.base_currency,
+                        "price_source": "pending",
+                        "price_provider": None,
+                        "price_date": None,
+                        "price_stale": False,
+                        "price_available": False,
+                    }
+                )
+            else:
+                price_info = self._resolve_position_price(symbol=symbol, as_of_date=as_of_date)
+                last_price = price_info.price
 
-            unrealized_pct = None
-            if cost_base > EPS:
-                unrealized_pct = unrealized_base / cost_base * 100.0
+                if price_info.is_available:
+                    local_market_value = qty * float(last_price)
+                    market_base, stale_market, _ = self._convert_amount(
+                        amount=local_market_value,
+                        from_currency=currency,
+                        to_currency=account.base_currency,
+                        as_of_date=as_of_date,
+                    )
+                    cost_base, stale_cost, _ = self._convert_amount(
+                        amount=total_cost,
+                        from_currency=currency,
+                        to_currency=account.base_currency,
+                        as_of_date=as_of_date,
+                    )
+                    unrealized_base = market_base - cost_base
+                    fx_stale = fx_stale or stale_market or stale_cost
+                else:
+                    market_base = 0.0
+                    cost_base = 0.0
+                    unrealized_base = 0.0
 
-            position_rows.append(
-                {
-                    "symbol": symbol,
-                    "market": market,
-                    "currency": currency,
-                    "quantity": round(qty, 8),
-                    "avg_cost": round(avg_cost, 8),
-                    "total_cost": round(total_cost, 8),
-                    "last_price": round(float(last_price), 8),
-                    "market_value_base": round(market_base, 8),
-                    "unrealized_pnl_base": round(unrealized_base, 8),
-                    "unrealized_pnl_pct": round(unrealized_pct, 8) if unrealized_pct is not None else None,
-                    "valuation_currency": account.base_currency,
-                    "price_source": price_info.source,
-                    "price_provider": price_info.provider,
-                    "price_date": price_info.price_date.isoformat() if price_info.price_date else None,
-                    "price_stale": price_info.is_stale,
-                    "price_available": price_info.is_available,
-                }
-            )
+                unrealized_pct = None
+                if cost_base > EPS:
+                    unrealized_pct = unrealized_base / cost_base * 100.0
 
-            market_value_base += market_base
+                position_rows.append(
+                    {
+                        "symbol": symbol,
+                        "name": stock_name,
+                        "market": market,
+                        "currency": currency,
+                        "quantity": round(qty, 8),
+                        "avg_cost": round(avg_cost, 8),
+                        "total_cost": round(total_cost, 8),
+                        "last_price": round(float(last_price), 8),
+                        "market_value_base": round(market_base, 8),
+                        "unrealized_pnl_base": round(unrealized_base, 8),
+                        "unrealized_pnl_pct": round(unrealized_pct, 8) if unrealized_pct is not None else None,
+                        "valuation_currency": account.base_currency,
+                        "price_source": price_info.source,
+                        "price_provider": price_info.provider,
+                        "price_date": price_info.price_date.isoformat() if price_info.price_date else None,
+                        "price_stale": price_info.is_stale,
+                        "price_available": price_info.is_available,
+                    }
+                )
+
+                market_value_base += market_base
+
             total_cost_base += cost_base
 
         return position_rows, lot_rows, market_value_base, total_cost_base, fx_stale
+
+    @staticmethod
+    def _resolve_stock_name(symbol: str, allow_realtime: bool = True) -> str:
+        try:
+            from data_provider.base import DataFetcherManager
+            name = DataFetcherManager().get_stock_name(symbol, allow_realtime=allow_realtime)
+            return name or ""
+        except Exception:
+            return ""
 
     def _resolve_position_price(self, *, symbol: str, as_of_date: date) -> _ResolvedPositionPrice:
         today = date.today()
