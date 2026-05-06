@@ -26,7 +26,6 @@ def _make_config(**kwargs) -> Config:
     """
     defaults = dict(
         stock_list=["600519"],
-        tushare_token=None,
         # Populate llm_model_list as the three-tier signal
         llm_model_list=[{"model_name": "gemini/gemini-2.0-flash", "litellm_params": {"model": "gemini/gemini-2.0-flash", "api_key": "sk-test"}}],
         litellm_model="gemini/gemini-2.0-flash",
@@ -102,7 +101,7 @@ class TestValidateStructuredHappyPath:
     def test_no_issues_when_fully_configured(self):
         cfg = _make_config()
         issues = cfg.validate_structured()
-        # No errors or warnings; only possible info about tushare / search
+        # No errors or warnings; only possible info about search
         errors = [i for i in issues if i.severity == "error"]
         warnings = [i for i in issues if i.severity == "warning"]
         assert errors == []

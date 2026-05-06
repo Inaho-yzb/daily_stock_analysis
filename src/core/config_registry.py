@@ -215,20 +215,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "validation": {"multi_value": True, "delimiter": ","},
         "display_order": 7,
     },
-    "TUSHARE_TOKEN": {
-        "title": "Tushare Token",
-        "description": "Token for Tushare Pro API.",
-        "category": "data_source",
-        "data_type": "string",
-        "ui_control": "password",
-        "is_sensitive": True,
-        "is_required": False,
-        "is_editable": True,
-        "default_value": None,
-        "options": [],
-        "validation": {},
-        "display_order": 10,
-    },
+
     "TICKFLOW_API_KEY": {
         "title": "TickFlow API Key",
         "description": "API key for TickFlow market review enhancement (A-share indices, plus market stats when universe queries are enabled).",
@@ -1915,7 +1902,7 @@ def _infer_category(key: str) -> str:
         return "ai_model"
     if key.endswith("_PRIORITY") or key.startswith(
         (
-            "TUSHARE",
+
             "TICKFLOW",
             "AKSHARE",
             "EFINANCE",

@@ -934,7 +934,7 @@ const PortfolioPage: React.FC = () => {
                     <th className="text-left py-2 pr-2">名称</th>
                     <th className="text-right py-2 pr-2">数量</th>
                     <th className="text-right py-2 pr-2">均价</th>
-                    <th className="text-right py-2 pr-2">现价</th>
+                    <th className="text-right py-2 pr-2">日线收盘价</th>
                     <th className="text-right py-2 pr-2">市值</th>
                     <th className="text-right py-2">未实现盈亏</th>
                     <th className="text-right py-2">收益率</th>

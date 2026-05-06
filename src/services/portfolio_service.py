@@ -1143,7 +1143,6 @@ class PortfolioService:
             return ""
 
     def _resolve_position_price(self, *, symbol: str, as_of_date: date) -> _ResolvedPositionPrice:
-        today = date.today()
 
         close = self.repo.get_latest_close_with_date(symbol=symbol, as_of=as_of_date)
         if close is not None:
@@ -1157,16 +1156,26 @@ class PortfolioService:
                     is_available=True,
                 )
 
-        if as_of_date == today:
-            realtime_price, provider = self._fetch_realtime_position_price(symbol)
-            if realtime_price is not None and realtime_price > 0:
+        # 没有缓存日线数据时，按需获取并落库
+        try:
+            dm = self._get_data_manager()
+            df, _ = dm.get_daily_data(symbol, days=60)
+            if df is not None and not df.empty:
+                self.repo.db.save_daily_data(df, symbol, data_source="TickFlowFetcher")
+        except Exception as exc:
+            logger.debug("[持仓] %s 按需获取日线失败: %s", symbol, exc)
+
+        # 重新查询
+        close = self.repo.get_latest_close_with_date(symbol=symbol, as_of=as_of_date)
+        if close is not None:
+            close_price, close_date = close
+            if close_price > 0:
                 return _ResolvedPositionPrice(
-                    price=float(realtime_price),
-                    source="realtime_quote",
-                    price_date=today,
-                    is_stale=False,
+                    price=float(close_price),
+                    source="history_close",
+                    price_date=close_date,
+                    is_stale=close_date < as_of_date,
                     is_available=True,
-                    provider=provider,
                 )
 
         return _ResolvedPositionPrice(
@@ -1176,29 +1185,6 @@ class PortfolioService:
             is_stale=True,
             is_available=False,
         )
-
-    def _fetch_realtime_position_price(self, symbol: str) -> Tuple[Optional[float], Optional[str]]:
-        try:
-            quote = self._get_data_manager().get_realtime_quote(symbol, log_final_failure=False)
-        except Exception as exc:
-            logger.warning("Failed to fetch realtime portfolio price for %s: %s", symbol, exc)
-            return None, None
-
-        if quote is None:
-            return None, None
-
-        price = getattr(quote, "price", None)
-        try:
-            numeric_price = float(price)
-        except (TypeError, ValueError):
-            return None, None
-
-        if numeric_price <= 0:
-            return None, None
-
-        source = getattr(quote, "source", None)
-        provider = getattr(source, "value", None) or (str(source) if source is not None else None)
-        return numeric_price, provider
 
     @staticmethod
     def _normalize_symbol_for_storage(symbol: str) -> str:

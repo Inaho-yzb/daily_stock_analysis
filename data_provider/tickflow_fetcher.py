@@ -1,21 +1,21 @@
 # -*- coding: utf-8 -*-
 """
 ===================================
-TickFlowFetcher - market review only
+TickFlowFetcher
 ===================================
 
-Issue #632 only requires TickFlow for A-share market review stability.
-This fetcher intentionally implements a narrow P0 surface:
+Primary data source for A-share, HK, and US stock daily data, using the
+TickFlow SDK (https://tickflow.org).
 
-1. Main A-share indices quotes
-2. A-share market breadth statistics
-
-It does not participate in the general daily-data or per-stock realtime
-pipelines and should only be called explicitly by DataFetcherManager.
+Capabilities:
+- A/HK/US daily K-line data via client.klines.get()
+- A-share main indices quotes via client.quotes.get()
+- A-share market breadth statistics via client.quotes.get(universes=...)
 """
 
 import logging
 import math
+from datetime import datetime
 from threading import RLock
 from time import monotonic
 from typing import Any, Dict, List, Optional
@@ -25,6 +25,9 @@ import pandas as pd
 from .base import (
     BaseFetcher,
     DataFetchError,
+    STANDARD_COLUMNS,
+    _is_hk_market,
+    _is_us_market,
     is_bse_code,
     is_kc_cy_stock,
     is_st_stock,
@@ -47,14 +50,15 @@ _UNIVERSE_PERMISSION_NEGATIVE_CACHE_TTL_SECONDS = 900
 
 
 class TickFlowFetcher(BaseFetcher):
-    """TickFlow-backed market review helper."""
+    """TickFlow data source: primary for A/HK/US daily data, also provides market review."""
 
     name = "TickFlowFetcher"
-    priority = 99
 
     def __init__(self, api_key: Optional[str], timeout: float = 30.0):
         self.api_key = (api_key or "").strip()
         self.timeout = timeout
+        # Dynamic priority: 1 when configured (highest), 99 when not
+        self.priority = 1 if self.api_key else 99
         self._client = None
         self._client_lock = RLock()
         self._universe_query_supported: Optional[bool] = None
@@ -96,17 +100,124 @@ class TickFlowFetcher(BaseFetcher):
                 self._client = self._build_client()
             return self._client
 
+    @staticmethod
+    def _to_tickflow_symbol(stock_code: str) -> str:
+        """Convert normalized stock code to TickFlow symbol format.
+
+        Examples:
+            '600519'   -> '600519.SH'
+            '000001'   -> '000001.SZ'
+            '300750'   -> '300750.SZ'
+            '688001'   -> '688001.SH'
+            '920748'   -> '920748.BJ'
+            'HK00700'  -> '00700.HK'
+            'AAPL'     -> 'AAPL.US'
+            'BRK.B'    -> 'BRK.B.US'
+        """
+        code = (stock_code or "").strip()
+        if not code:
+            return code
+
+        upper = code.upper()
+
+        # US stocks: non-numeric ticker (including dots like BRK.B)
+        if _is_us_market(code):
+            return f"{upper}.US"
+
+        # HK stocks: HK00700 -> 00700.HK
+        if _is_hk_market(code):
+            if upper.startswith("HK"):
+                digits = upper[2:]
+                return f"{digits}.HK"
+            return f"{upper}.HK"
+
+        # A-shares: 6-digit numeric codes mapped to exchange suffix
+        if code.isdigit() and len(code) == 6:
+            if code.startswith(("60", "68")):
+                return f"{code}.SH"
+            elif code.startswith(("00", "30")):
+                return f"{code}.SZ"
+            elif is_bse_code(code):
+                return f"{code}.BJ"
+            return f"{code}.SH"  # fallback
+
+        return code
+
     def _fetch_raw_data(
         self, stock_code: str, start_date: str, end_date: str
     ) -> pd.DataFrame:
-        raise DataFetchError(
-            "TickFlowFetcher P0 only supports market review endpoints"
-        )
+        """Fetch daily K-line data from TickFlow SDK.
+
+        Supports A-shares (.SH/.SZ/.BJ), HK stocks (.HK), and US stocks (.US).
+        """
+        client = self._get_client()
+        if client is None:
+            raise DataFetchError(
+                "TickFlowFetcher: API key not configured, "
+                "set TICKFLOW_API_KEY in .env"
+            )
+
+        symbol = self._to_tickflow_symbol(stock_code)
+
+        # Convert string dates to millisecond timestamps for TickFlow SDK
+        start_dt = datetime.strptime(start_date, "%Y-%m-%d")
+        end_dt = datetime.strptime(end_date, "%Y-%m-%d")
+        start_ms = int(start_dt.timestamp() * 1000)
+        end_ms = int(end_dt.timestamp() * 1000)
+
+        try:
+            df = client.klines.get(
+                symbol=symbol,
+                period="1d",
+                start_time=start_ms,
+                end_time=end_ms,
+                adjust="forward",
+                as_dataframe=True,
+            )
+        except Exception as exc:
+            raise DataFetchError(
+                f"TickFlowFetcher {stock_code} ({symbol}) SDK 调用失败: {exc}"
+            ) from exc
+
+        if df is None or df.empty:
+            raise DataFetchError(
+                f"TickFlowFetcher 未获取到 {stock_code} ({symbol}) 的 K 线数据"
+            )
+
+        return df
 
     def _normalize_data(self, df: pd.DataFrame, stock_code: str) -> pd.DataFrame:
-        raise DataFetchError(
-            "TickFlowFetcher P0 only supports market review endpoints"
-        )
+        """Map TickFlow K-line DataFrame to standard columns.
+
+        TickFlow DataFrame columns:
+            symbol, name, timestamp, trade_date, trade_time, open, high, low, close, volume, amount
+
+        Standard columns required:
+            date, open, high, low, close, volume, amount, pct_chg
+        """
+        df = df.copy()
+
+        # Map TickFlow columns to standard naming
+        df = df.rename(columns={"trade_date": "date"})
+
+        # Ensure date is datetime
+        if "date" in df.columns:
+            df["date"] = pd.to_datetime(df["date"])
+
+        # Sort by date ascending
+        df = df.sort_values("date", ascending=True)
+
+        # Calculate pct_chg from close
+        df["pct_chg"] = df["close"].pct_change() * 100
+
+        # Add stock code column
+        df["code"] = stock_code
+
+        # Keep only standard columns that exist
+        keep_cols = ["code"] + STANDARD_COLUMNS
+        existing = [col for col in keep_cols if col in df.columns]
+
+        return df[existing]
 
     @staticmethod
     def _safe_float(value: Any) -> Optional[float]:

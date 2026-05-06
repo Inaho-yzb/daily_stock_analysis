@@ -874,26 +874,32 @@ class DataFetcherManager:
         """
         初始化默认数据源列表
 
-        默认优先级顺序：
-          0. TushareFetcher (Priority 0) - Tushare Pro（需配置 Token，无 Token 时快速失败）
-          1. BaostockFetcher (Priority 1) - 宝钢证券（免费、无需注册）
-          2. EfinanceFetcher (Priority 2)
-          3. AkshareFetcher (Priority 3)
-          4. PytdxFetcher (Priority 4) - 通达信
-          5. YfinanceFetcher (Priority 5)
-          6. LongbridgeFetcher (Priority 6) - 长桥（美股/港股兜底）
+        默认优先级顺序（TickFlow 配置 API Key 时优先）：
+          0. TickFlowFetcher (Priority 1) - TickFlow（需配置 TICKFLOW_API_KEY，首选）
+          1. BaostockFetcher (Priority 3) - 宝钢证券（免费、无需注册）
+          2. EfinanceFetcher (Priority 4)
+          3. AkshareFetcher (Priority 5)
+          4. PytdxFetcher (Priority 7) - 通达信
+          5. YfinanceFetcher (Priority 8) - Yahoo Finance（美股/港股）
+          6. LongbridgeFetcher (Priority 9) - 长桥（美股/港股兜底）
         """
         from .efinance_fetcher import EfinanceFetcher
         from .akshare_fetcher import AkshareFetcher
-        from .tushare_fetcher import TushareFetcher
         from .pytdx_fetcher import PytdxFetcher
         from .baostock_fetcher import BaostockFetcher
         from .yfinance_fetcher import YfinanceFetcher
         from .longbridge_fetcher import LongbridgeFetcher
+        from .tickflow_fetcher import TickFlowFetcher
+
         # 创建所有数据源实例（优先级在各 Fetcher 的 __init__ 中确定）
+        from src.config import get_config
+
+        _cfg = get_config()
+        _tf_key = (getattr(_cfg, "tickflow_api_key", None) or "").strip()
+        tickflow = TickFlowFetcher(api_key=_tf_key) if _tf_key else None
+
         efinance = EfinanceFetcher()
         akshare = AkshareFetcher()
-        tushare = TushareFetcher()  # 会根据 Token 配置自动调整优先级
         pytdx = PytdxFetcher()      # 通达信数据源（可配 PYTDX_HOST/PYTDX_PORT）
         baostock = BaostockFetcher()
         yfinance = YfinanceFetcher()
@@ -902,17 +908,19 @@ class DataFetcherManager:
         # 初始化数据源列表
         self._ensure_concurrency_guards()
         with self._fetchers_lock:
-            self._fetchers = [
-                tushare,
+            self._fetchers = []
+            if tickflow is not None:
+                self._fetchers.append(tickflow)
+            self._fetchers.extend([
                 baostock,
                 efinance,
                 akshare,
                 pytdx,
                 yfinance,
                 longbridge,
-            ]
+            ])
 
-            # 按优先级排序（Tushare 如果配置了 Token 且初始化成功，优先级为 0）
+            # 按优先级排序
             self._fetchers.sort(key=lambda f: f.priority)
 
         # 构建优先级说明
@@ -937,11 +945,12 @@ class DataFetcherManager:
         获取日线数据（自动切换数据源）
         
         故障切换策略：
-        1. 美股指数/美股股票直接路由到 YfinanceFetcher
-        2. 其他代码从最高优先级数据源开始尝试
-        3. 捕获异常后自动切换到下一个
-        4. 记录每个数据源的失败原因
-        5. 所有数据源失败后抛出详细异常
+        1. TickFlowFetcher 配置后为首选，覆盖 A/HK/US 日线数据
+        2. 美股指数/美股股票路由到 YfinanceFetcher/LongbridgeFetcher
+        3. 其他代码从最高优先级数据源开始尝试
+        4. 捕获异常后自动切换到下一个
+        5. 记录每个数据源的失败原因
+        6. 所有数据源失败后抛出详细异常
         
         Args:
             stock_code: 股票代码
@@ -973,7 +982,7 @@ class DataFetcherManager:
         is_us = is_us_index or is_us_stock_code(stock_code)
         is_hk = (not is_us) and _is_hk_market(stock_code)
 
-        # 美股（含美股指数）使用 Longbridge/YFinance 特殊路由；港股走下方通用数据源循环
+        # 美股（含美股指数）使用 TickFlow/Longbridge/YFinance 特殊路由；港股走下方通用数据源循环
         if is_us:
             prefer_lb = self._longbridge_preferred() and not is_us_index
             source_order = (
@@ -981,6 +990,9 @@ class DataFetcherManager:
                 if prefer_lb
                 else ["YfinanceFetcher", "LongbridgeFetcher"]
             )
+            # TickFlowFetcher 已注册时，插到美股路由第一位作为首选
+            if any(f.name == "TickFlowFetcher" for f in fetchers):
+                source_order.insert(0, "TickFlowFetcher")
             market_label = "美股指数" if is_us_index else "美股"
 
             for src_name in source_order:
@@ -1105,10 +1117,10 @@ class DataFetcherManager:
             return 0
         
         # 检查优先级中是否包含全量拉取数据源
-        # 注意：新增全量接口（如 tushare_realtime）时需同步更新此列表
+        # 注意：新增全量接口时需同步更新此列表
         # 全量接口特征：一次 API 调用拉取全市场 5000+ 股票数据
         priority = config.realtime_source_priority.lower()
-        bulk_sources = ['efinance', 'akshare_em', 'tushare']  # 全量接口列表
+        bulk_sources = ['efinance', 'akshare_em']  # 全量接口列表
         
         # 如果优先级中前两个都不是全量数据源，跳过预取
         # 因为新浪/腾讯是单股票查询，不需要预取
@@ -1267,14 +1279,7 @@ class DataFetcherManager:
                                 quote = self._call_fetcher_method(fetcher, 'get_realtime_quote', stock_code, source="tencent")
                             break
                 
-                elif source == "tushare":
-                    # 尝试 TushareFetcher（需要 Tushare Pro 积分）
-                    for fetcher in self._get_fetchers_snapshot():
-                        if fetcher.name == "TushareFetcher":
-                            if hasattr(fetcher, 'get_realtime_quote'):
-                                quote = self._call_fetcher_method(fetcher, 'get_realtime_quote', raw_stock_code or stock_code)
-                            break
-                
+
                 if quote is not None and quote.has_basic_data():
                     if primary_quote is None:
                         # First successful source becomes primary
@@ -1442,7 +1447,7 @@ class DataFetcherManager:
                 continue
             
             fetcher_name = fetcher.name
-            # 动态生成熔断器的 key，例如 "TushareFetcher" -> "tushare_chip"
+            # 动态生成熔断器的 key
             source_key = f"{fetcher_name.replace('Fetcher', '').lower()}_chip"
 
             # 检查熔断器状态
@@ -2528,7 +2533,7 @@ class DataFetcherManager:
 
     def get_sector_rankings(self, n: int = 5) -> Tuple[List[Dict], List[Dict]]:
         """获取板块涨跌榜（自动切换数据源）"""
-        # 按需求固定回退顺序：Akshare(EM) -> Akshare(Sina) -> Tushare -> Efinance
+        # 按需求固定回退顺序：Akshare(EM) -> Akshare(Sina) -> Efinance
         top, bottom, _, last_error = self._get_sector_rankings_with_meta(n)
         if top or bottom:
             return top, bottom

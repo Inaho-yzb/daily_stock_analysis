@@ -5,7 +5,7 @@ Unit tests for BSE (Beijing Stock Exchange) code recognition (Issue #491).
 Covers:
 - is_bse_code()
 - normalize_stock_code() BJ prefix/suffix
-- TushareFetcher._convert_stock_code() BSE branch
+- BaostockFetcher._convert_stock_code() BSE branch
 - AkshareFetcher _to_sina_tx_symbol() BSE and Shanghai B-share handling
 """
 import sys
@@ -30,7 +30,7 @@ except ImportError as e:
 
 # Optional fetcher-specific imports
 try:
-    from data_provider.tushare_fetcher import TushareFetcher
+    from data_provider.baostock_fetcher import BaostockFetcher
     _TUSHARE_IMPORTS_OK = True
     _TUSHARE_IMPORT_ERROR = ""
 except ImportError as e:
@@ -109,13 +109,13 @@ class TestNormalizeStockCode(unittest.TestCase):
         self.assertEqual(normalize_stock_code("HK700"), "HK00700")
 
 
-@unittest.skipIf(not _TUSHARE_IMPORTS_OK, f"tushare fetcher imports failed: {_TUSHARE_IMPORT_ERROR}")
+@unittest.skipIf(not _TUSHARE_IMPORTS_OK, f"baostock fetcher imports failed: {_TUSHARE_IMPORT_ERROR}")
 class TestTushareConvertStockCode(unittest.TestCase):
-    """Tests for TushareFetcher._convert_stock_code() BSE branch."""
+    """Tests for BaostockFetcher._convert_stock_code() BSE branch."""
 
     def test_bse_returns_bj_suffix(self):
         """BSE codes should convert to xxx.BJ."""
-        fetcher = TushareFetcher()
+        fetcher = BaostockFetcher()
         self.assertEqual(fetcher._convert_stock_code("920748"), "920748.BJ")
         self.assertEqual(fetcher._convert_stock_code("838163"), "838163.BJ")
         self.assertEqual(fetcher._convert_stock_code("430047"), "430047.BJ")
