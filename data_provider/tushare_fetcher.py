@@ -128,7 +128,7 @@ class TushareFetcher(BaseFetcher):
     """
     
     name = "TushareFetcher"
-    priority = int(os.getenv("TUSHARE_PRIORITY", "2"))  # 默认优先级，会在 __init__ 中根据配置动态调整
+    priority = int(os.getenv("TUSHARE_PRIORITY", "0"))  # 默认最高优先级，会在 __init__ 中根据配置动态调整
 
     def __init__(self, rate_limit_per_minute: int = 80):
         """
@@ -187,8 +187,8 @@ class TushareFetcher(BaseFetcher):
         根据 Token 配置和 API 初始化状态确定优先级
 
         策略：
-        - Token 配置且 API 初始化成功：优先级 -1（绝对最高，优于 efinance）
-        - 其他情况：优先级 2（默认）
+        - Token 配置且 API 初始化成功：优先级 0（最高，优于其他数据源）
+        - 其他情况：仍返回 0，调用时快速失败切换至下一个数据源
 
         Returns:
             优先级数字（0=最高，数字越大优先级越低）
@@ -196,12 +196,12 @@ class TushareFetcher(BaseFetcher):
         config = get_config()
 
         if config.tushare_token and self._api is not None:
-            # Token 配置且 API 初始化成功，提升为最高优先级
-            logger.info("✅ 检测到 TUSHARE_TOKEN 且 API 初始化成功，Tushare 数据源优先级提升为最高 (Priority -1)")
-            return -1
+            # Token 配置且 API 初始化成功，Tushare 作为首选数据源
+            logger.info("检测到 TUSHARE_TOKEN 且 API 初始化成功，Tushare 数据源优先级最高 (Priority 0)")
+            return 0
 
-        # Token 未配置或 API 初始化失败，保持默认优先级
-        return 2
+        # Token 未配置或 API 初始化失败，保持最高优先级但调用时会快速失败
+        return 0
 
     def is_available(self) -> bool:
         """

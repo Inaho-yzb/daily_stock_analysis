@@ -262,7 +262,7 @@ class LongbridgeFetcher(BaseFetcher):
     """
 
     name = "LongbridgeFetcher"
-    priority = int(os.getenv("LONGBRIDGE_PRIORITY", "5"))
+    priority = int(os.getenv("LONGBRIDGE_PRIORITY", "6"))
 
     _CONNECTION_ERRORS = ("client is closed", "context closed", "connection closed")
 

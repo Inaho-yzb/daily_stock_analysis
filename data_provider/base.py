@@ -874,16 +874,14 @@ class DataFetcherManager:
         """
         初始化默认数据源列表
 
-        优先级动态调整逻辑：
-        - 如果配置了 TUSHARE_TOKEN：Tushare 优先级提升为 0（最高）
-        - 否则按默认优先级：
-          0. EfinanceFetcher (Priority 0) - 最高优先级
-          1. AkshareFetcher (Priority 1)
-          2. PytdxFetcher (Priority 2) - 通达信
-          2. TushareFetcher (Priority 2)
-          3. BaostockFetcher (Priority 3)
-          4. YfinanceFetcher (Priority 4)
-          5. LongbridgeFetcher (Priority 5) - 长桥（美股/港股兜底）
+        默认优先级顺序：
+          0. TushareFetcher (Priority 0) - Tushare Pro（需配置 Token，无 Token 时快速失败）
+          1. BaostockFetcher (Priority 1) - 宝钢证券（免费、无需注册）
+          2. EfinanceFetcher (Priority 2)
+          3. AkshareFetcher (Priority 3)
+          4. PytdxFetcher (Priority 4) - 通达信
+          5. YfinanceFetcher (Priority 5)
+          6. LongbridgeFetcher (Priority 6) - 长桥（美股/港股兜底）
         """
         from .efinance_fetcher import EfinanceFetcher
         from .akshare_fetcher import AkshareFetcher
@@ -905,11 +903,11 @@ class DataFetcherManager:
         self._ensure_concurrency_guards()
         with self._fetchers_lock:
             self._fetchers = [
+                tushare,
+                baostock,
                 efinance,
                 akshare,
-                tushare,
                 pytdx,
-                baostock,
                 yfinance,
                 longbridge,
             ]
