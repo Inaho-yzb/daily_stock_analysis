@@ -15,8 +15,10 @@
 """
 
 import logging
+import os
 import random
 import time
+import concurrent.futures
 from threading import BoundedSemaphore, RLock, Thread
 from abc import ABC, abstractmethod
 from datetime import datetime
@@ -34,6 +36,9 @@ logger = logging.getLogger(__name__)
 
 # === 标准化列名定义 ===
 STANDARD_COLUMNS = ['date', 'open', 'high', 'low', 'close', 'volume', 'amount', 'pct_chg']
+
+# 股票名称查询：单个数据源最大等待时间（秒），超时后自动跳过
+_STOCK_NAME_PER_SOURCE_TIMEOUT = float(os.getenv("STOCK_NAME_PER_SOURCE_TIMEOUT", "5.0"))
 
 
 def unwrap_exception(exc: Exception) -> Exception:
@@ -524,6 +529,8 @@ class DataFetcherManager:
             self._stock_name_cache = {}
         if not hasattr(self, "_stock_name_cache_lock") or self._stock_name_cache_lock is None:
             self._stock_name_cache_lock = RLock()
+        if not hasattr(self, "_stock_name_negative") or self._stock_name_negative is None:
+            self._stock_name_negative: set = set()
 
     def _get_fetchers_snapshot(self) -> List[BaseFetcher]:
         self._ensure_concurrency_guards()
@@ -545,6 +552,28 @@ class DataFetcherManager:
         method = getattr(fetcher, method_name)
         with self._get_fetcher_call_lock(fetcher):
             return method(*args, **kwargs)
+
+    def _call_fetcher_with_timeout(
+        self, fetcher: BaseFetcher, method_name: str,
+        timeout_seconds: float, *args, **kwargs
+    ):
+        """Execute a fetcher method in a thread with a hard timeout.
+
+        Used for non-critical lookups (e.g. stock names) where a single slow
+        data source must not block the entire request.
+        """
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(
+                self._call_fetcher_method, fetcher, method_name, *args, **kwargs
+            )
+            try:
+                return future.result(timeout=timeout_seconds)
+            except concurrent.futures.TimeoutError:
+                logger.debug(
+                    f"[超时] {fetcher.name}.{method_name}() "
+                    f"超过 {timeout_seconds:.1f}s 限制，已跳过"
+                )
+                return None
 
     def _get_cached_stock_name(self, stock_code: str) -> Optional[str]:
         self._ensure_concurrency_guards()
@@ -1485,7 +1514,13 @@ class DataFetcherManager:
                 logger.info(f"[股票名称] 从实时行情获取: {stock_code} -> {name}")
                 return name
 
-        # 3. 依次尝试各个数据源
+        # 3. 检查负面缓存：本次进程生命周期内已确认无法解析的代码直接跳过
+        self._ensure_concurrency_guards()
+        if stock_code in self._stock_name_negative:
+            logger.debug(f"[股票名称] 跳过已知无法解析的代码 {stock_code}")
+            return ""
+
+        # 4. 依次尝试各个数据源（每个数据源有超时限制，避免单一数据源拖垮整体响应）
         from .akshare_fetcher import _is_us_code
         is_us = _is_us_code(stock_code)
         _US_CAPABLE_FETCHERS = {"YfinanceFetcher", "LongbridgeFetcher"}
@@ -1495,7 +1530,9 @@ class DataFetcherManager:
             if is_us and fetcher.name not in _US_CAPABLE_FETCHERS:
                 continue
             try:
-                name = self._call_fetcher_method(fetcher, 'get_stock_name', stock_code)
+                name = self._call_fetcher_with_timeout(
+                    fetcher, 'get_stock_name', _STOCK_NAME_PER_SOURCE_TIMEOUT, stock_code
+                )
                 if is_meaningful_stock_name(name, stock_code):
                     self._cache_stock_name(stock_code, name)
                     logger.info(f"[股票名称] 从 {fetcher.name} 获取: {stock_code} -> {name}")
@@ -1504,7 +1541,8 @@ class DataFetcherManager:
                 logger.debug(f"[股票名称] {fetcher.name} 获取失败: {e}")
                 continue
 
-        # 4. 所有数据源都失败
+        # 5. 所有数据源都失败，记录到负面缓存避免重复尝试
+        self._stock_name_negative.add(stock_code)
         logger.warning(f"[股票名称] 所有数据源都无法获取 {stock_code} 的名称")
         return ""
 
